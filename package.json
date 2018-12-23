@@ -3,11 +3,22 @@
   "version": "0.1.0",
   "description": "Chromecast Abstraction",
   "main": "index.js",
+  "author": "Micheel Wieczorek",
+  "license": "MIT",
   "directories": {
     "lib": "lib"
   },
-  "author": "Mike",
-  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mweiczorek/chromecast-js"
+  },
+  "typescript": {
+    "definition": "./index.d.ts"
+  },
+  "keywords": [
+    "google-cast",
+    "chromecast"
+  ],
   "devDependencies": {
     "@types/chrome": "^0.0.76",
     "@types/chromecast-caf-sender": "^1.0.0",
@@ -18,6 +29,6 @@
   },
   "scripts": {
     "start": "nodemon",
-    "dts": "dts-bundle-generator index.ts -o ccjs.d.ts"
+    "dts": "dts-bundle-generator index.ts -o index.d.ts"
   }
 }

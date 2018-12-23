@@ -1,0 +1,14 @@
+{
+  "exec": "browserify ./test/main.js -o ./static/script.js && node serve.js",
+  "delay": "500",
+  "watch": [
+    "./lib",
+    "index.js",
+    "./test"
+  ],
+  "ext": "js",
+  "env": {
+    "NODE_ENV": "development",
+    "PORT": "9009"
+  }
+}

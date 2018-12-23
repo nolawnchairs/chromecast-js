@@ -1,0 +1,25 @@
+{
+    "compilerOptions": {
+      "module": "commonjs",
+      "target": "es5",
+      "lib": ["es2017", "dom"],
+      "sourceMap": false,
+      "importHelpers": true,
+      "emitDecoratorMetadata": false,
+      "experimentalDecorators": true,
+      "esModuleInterop": true,
+      "allowSyntheticDefaultImports": true,
+      "removeComments": true,
+      "allowUnusedLabels": true,
+      "strict": false,
+      "noUnusedLocals": false,
+      "noUnusedParameters": false,
+      "strictPropertyInitialization": false,
+      "outDir": "./lib",
+      "declaration": true,
+      "declarationDir": "./dts"
+    },
+    "include": [
+      "./src/**/*"
+    ]
+  }

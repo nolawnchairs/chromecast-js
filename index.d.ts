@@ -81,7 +81,7 @@ declare class Media {
 }
 
 export interface PartialOptions {
-  autoJoinPolicy?: chrome.cast.AutoJoinPolicy;
+  autoJoinPolicy?: string;
   receiverApplicationId?: string;
   language?: string;
 }
@@ -106,8 +106,15 @@ export declare class Chromecast {
   static readonly player: cast.framework.RemotePlayer;
   static readonly session: cast.framework.CastSession;
   static readonly currentQueueItem: number;
+  readonly AutoJoinPolicy: {
+    CUSTOM_CONTROLLER_SCOPED: string;
+    TAB_AND_ORIGIN_SCOPED: string;
+    ORIGIN_SCOPED: string;
+    PAGE_SCOPED: string;
+  };
   static disconnect(): void;
   static on(event: EventType, fn: HandlerFn): void;
+  static off(event: EventType): void;
   static getCurrentMedia(): chrome.cast.media.MediaInfo;
   static newMediaEntity(mediaId: string, mimeType: string): chrome.cast.media.MediaInfo;
   static newMediaEntity(mediaId: string, mimeType: string, title: string): chrome.cast.media.MediaInfo;
@@ -115,7 +122,7 @@ export declare class Chromecast {
   static newMediaEntity(mediaId: string, mimeType: string, title?: string, image?: string, meta?: AbstractMetaData): chrome.cast.media.MediaInfo;
   static playOne(media: chrome.cast.media.MediaInfo): void;
   static queueItems(items: chrome.cast.media.MediaInfo[]): void;
-  static addToQueue(item: chrome.cast.media.MediaInfo): void;
+  static appendToQueue(item: chrome.cast.media.MediaInfo): void;
   static removeFromQueue(item: number): void;
   static reorderQueue(items: number[], before?: number): void
   static reorderQueue(item: number, before?: number): void
@@ -126,11 +133,11 @@ export declare class Chromecast {
 }
 
 export declare class Register {
-  static forConnectionEvent(listener: Listeners.CastEvent): UnregisterHook;
-  static forPlayerEvent(listener: Listeners.PlaybackEvent): UnregisterHook;
-  static forPlayerCapabilityEvent(listener: Listeners.PlayerCapabilityEvent): UnregisterHook;
-  static forQueueEvent(listener: Listeners.QueueEvent): UnregisterHook;
-  static forNativeEvent(listener: Listeners.NativeEvent): UnregisterHook;
+  static forConnectionEvents(listener: Listeners.CastEvent): UnregisterHook;
+  static forPlayerEvents(listener: Listeners.PlaybackEvent): UnregisterHook;
+  static forPlayerCapabilityEvents(listener: Listeners.PlayerCapabilityEvent): UnregisterHook;
+  static forQueueEvents(listener: Listeners.QueueEvent): UnregisterHook;
+  static forEvents(listener: Listeners.NativeEvent): UnregisterHook;
 }
 export declare class Controller {
   static togglePlay(): void;

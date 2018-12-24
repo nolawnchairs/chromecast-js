@@ -6,8 +6,15 @@ import Controller from './Controller'
 
 const onAvailableCallbackId = '__onGCastApiAvailable'
 
+export enum AutoJoinPolicy {
+  CUSTOM_CONTROLLER_SCOPED = 'custom_controller_scoped',
+  TAB_AND_ORIGIN_SCOPED = 'tab_and_origin_scoped',
+  ORIGIN_SCOPED = 'origin_scoped',
+  PAGE_SCOPED = 'page_scoped'
+}
+
 export interface PartialOptions {
-  autoJoinPolicy?: chrome.cast.AutoJoinPolicy
+  autoJoinPolicy?: AutoJoinPolicy
   receiverApplicationId?: string
   language?: string
 }
@@ -42,9 +49,17 @@ class ChromecastInstance {
   private _controller: cast.framework.RemotePlayerController
   private _eventDelegate: PlayerEventDelegate
   private _queue: Queue
+  private _currentQueuetem = -1
   private _readyStateListener: () => void = () => { }
   private _shutdownStateListener: () => void = () => { }
   private _errorListener: (e: chrome.cast.Error) => void = () => { }
+
+  readonly AutoJoinPolicy = {
+    CUSTOM_CONTROLLER_SCOPED: 'custom_controller_scoped',
+    TAB_AND_ORIGIN_SCOPED: 'tab_and_origin_scoped',
+    ORIGIN_SCOPED: 'origin_scoped',
+    PAGE_SCOPED: 'page_scoped'
+  }
 
   constructor() {
     this._eventDelegate = new PlayerEventDelegate()
@@ -108,8 +123,7 @@ class ChromecastInstance {
   }
 
   get currentQueueItem(): number {
-    const item = this._queue.items.find(i => i.media.contentId == this.getCurrentMedia().contentId)
-    return item ? item.itemId : -1
+    return this._currentQueuetem
   }
 
   getCurrentMedia(): chrome.cast.media.MediaInfo {
@@ -124,6 +138,10 @@ class ChromecastInstance {
 
   on(event: EventType, fn: HandlerFn) {
     this._eventDelegate.addListener(event, fn)
+  }
+
+  off(event: EventType) {
+    this._eventDelegate.removeListener(event)
   }
 
   newMediaEntity(mediaId: string, mimeType: string): chrome.cast.media.MediaInfo
@@ -147,13 +165,17 @@ class ChromecastInstance {
     this._queue.add(items.map(i => new chrome.cast.media.QueueItem(i)))
   }
 
-  addToQueue(item: chrome.cast.media.MediaInfo) {
+  appendToQueue(item: chrome.cast.media.MediaInfo) {
+    if (!this._queue.started)
+      throw new Error('Chromecast::appendToQueue - Queue items cannot be appended before queued media has begun playback. Add your media items using Chromecast::queueItems before starting playback')
     this._queue.append(new chrome.cast.media.QueueItem(item), this._castSession.getMediaSession())
       .then(() => this.emitQueueEvent('queueInsert', this._queue.items))
       .catch(this.onError)
   }
 
   removeFromQueue(item: number) {
+    if (!this._queue.started)
+      throw new Error('Chromecast::removeFromQueue - Queue items cannot be removed before queued media has begun playback.')
     this._queue.removeItem(item, this._castSession.getMediaSession())
       .then(() => this.emitQueueEvent('queueRemove', this._queue.items))
       .catch(this.onError)
@@ -162,6 +184,10 @@ class ChromecastInstance {
   reorderQueue(items: number[], before?: number): void
   reorderQueue(item: number, before?: number): void
   reorderQueue() {
+    if (arguments.length == 0)
+      throw new Error('Chromecast::redorderQueue - no arguments')
+    if (!this._queue.started)
+      throw new Error('Chromecast::redorderQueue - Queue items cannot be reordered before queued media has begun playback.')
     const items: number[] = typeof arguments[0] == 'number' ? [arguments[0]] : arguments[0]
     this._queue.reorderItems(items, this._castSession.getMediaSession(), arguments[1] || null)
   }
@@ -169,8 +195,6 @@ class ChromecastInstance {
   startQueue() {
     const request = new chrome.cast.media.QueueLoadRequest(this._queue.items)
     this._castSessionData.queueLoad(request, this.onQueueLoaded, this.onError)
-    this._queue.start()
-    this.emitQueueEvent('queueStart')
   }
 
   restartCurrent() {
@@ -206,10 +230,24 @@ class ChromecastInstance {
     }
   }
 
+  private async awaitQueueChange() {
+    return new Promise(resolve => {
+      const i = window.setInterval(() => {
+        if (this._castSession.getMediaSession() != null) {
+          window.clearInterval(i)
+          resolve()
+        }
+      }, 100)
+    })
+  }
+
   @Bind
   private onQueueLoaded() {
     this.createController()
-    this.emitQueueEvent('queueLoad')
+    this._queue.start()
+    this._currentQueuetem = 0
+    this.emitQueueEvent('queueStart')
+    this.emitQueueEvent('queueItem', 0)
   }
 
   @Bind
@@ -224,7 +262,10 @@ class ChromecastInstance {
 
   @Bind
   private onQueuedItemChange() {
-    this.emitQueueEvent('queueItem', this.currentQueueItem)
+    this.awaitQueueChange().then(() => {
+      this._currentQueuetem = this._castSession.getMediaSession().currentItemId - 1
+      this.emitQueueEvent('queueItem', this._currentQueuetem)
+    })
   }
 
   @Bind

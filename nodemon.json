@@ -1,5 +1,5 @@
 {
-  "exec": "browserify ./test/main.js -o ./static/script.js && node serve.js",
+  "exec": "browserify ./test/main.js -o ./static/script.js && node ./test/serve.js",
   "delay": "500",
   "watch": [
     "./lib",

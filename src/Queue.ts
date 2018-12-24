@@ -1,6 +1,5 @@
 
-export declare type QueueEventType = 'queueLoad'
-  | 'queueStart'
+export declare type QueueEventType = 'queueStart'
   | 'queueComplete'
   | 'queueInsert'
   | 'queueRemove'

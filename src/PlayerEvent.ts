@@ -40,7 +40,6 @@ export namespace Listeners {
   }
 
   export interface QueueEvent {
-    onLoaded(): void
     onStarted(): void
     onStopped(): void
     onUpdated(): void
@@ -56,7 +55,7 @@ export type EventType = 'isConnected' | 'isMediaLoaded' | 'duration'
   | 'currentTime' | 'isPaused' | 'volumeLevel' | 'canControlVolume'
   | 'isMuted' | 'canPause' | 'canSeek' | 'displayName' | 'statusText'
   | 'title' | 'displayStatus' | 'imageUrl'
-  | 'mediaInfo' | 'playerState' | & QueueEventType
+  | 'mediaInfo' | 'playerState' | QueueEventType
 
 export class PlayerEventDelegate {
 
@@ -87,7 +86,6 @@ export class PlayerEventDelegate {
     this.bind('imageUrl', this.onImageUrlChange)
     this.bind('mediaInfo', this.onMediaInfoChanged)
     this.bind('playerState', this.onPlayerState)
-    this.bind('queueLoad', this.onQueueLoaded)
     this.bind('queueStart', this.onQueueStart)
     this.bind('queueComplete', this.onQueueStopped)
     this.bind('queueInsert', this.onQueueUpdated)
@@ -101,6 +99,10 @@ export class PlayerEventDelegate {
 
   addListener(event: EventType, handler: HandlerFn) {
     this._listeners.set(event, handler)
+  }
+
+  removeListener(event: EventType) {
+    this._listeners.delete(event)
   }
 
   registerPlaybackEventListener(listener: Listeners.PlaybackEvent): UnregisterHook {
@@ -264,11 +266,6 @@ export class PlayerEventDelegate {
   @Bind
   private canSeek(can: boolean) {
     this._playerCapabilityListeners.forEach(l => l.canSeek(can))
-  }
-
-  @Bind
-  private onQueueLoaded() {
-    this._queueListeners.forEach(l => l.onLoaded())
   }
 
   @Bind

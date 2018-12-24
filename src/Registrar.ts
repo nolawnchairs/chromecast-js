@@ -15,6 +15,10 @@ export default class Register {
     return Chromecast.eventDelegate.registerPlayerCapabilityListener(listener)
   }
 
+  static forQueueEvent(listener: Listeners.QueueEvent): UnregisterHook {
+    return Chromecast.eventDelegate.registerQueueEventListener(listener)
+  }
+
   static forNativeEvent(listener: Listeners.NativeEvent): UnregisterHook {
     return Chromecast.eventDelegate.registerNativeEventListener(listener)
   }

@@ -1,3 +1,4 @@
+"use strict";
 
 var cc = require('./lib/Chromecast')
 var re = require('./lib/Registrar')
@@ -9,3 +10,4 @@ module.exports =  {
   Register: re.default,
   Controller: co.default
 }
+

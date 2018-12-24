@@ -1,4 +1,5 @@
 (function(){function r(e,n,t){function o(i,f){if(!n[i]){if(!e[i]){var c="function"==typeof require&&require;if(!f&&c)return c(i,!0);if(u)return u(i,!0);var a=new Error("Cannot find module '"+i+"'");throw a.code="MODULE_NOT_FOUND",a}var p=n[i]={exports:{}};e[i][0].call(p.exports,function(r){var n=e[i][1][r];return o(n||r)},p,p.exports,r,e,n,t)}return n[i].exports}for(var u="function"==typeof require&&require,i=0;i<t.length;i++)o(t[i]);return o}return r})()({1:[function(require,module,exports){
+"use strict";
 
 var cc = require('./lib/Chromecast')
 var re = require('./lib/Registrar')
@@ -11,7 +12,8 @@ module.exports =  {
   Controller: co.default
 }
 
-},{"./lib/Chromecast":3,"./lib/Controller":4,"./lib/Registrar":7}],2:[function(require,module,exports){
+
+},{"./lib/Chromecast":3,"./lib/Controller":4,"./lib/Registrar":8}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function Bind(target, propertyKey, descriptor) {
@@ -40,6 +42,8 @@ var tslib_1 = require("tslib");
 var Bind_1 = tslib_1.__importDefault(require("./Bind"));
 var PlayerEvent_1 = require("./PlayerEvent");
 var Media_1 = tslib_1.__importDefault(require("./Media"));
+var Queue_1 = tslib_1.__importDefault(require("./Queue"));
+var Controller_1 = tslib_1.__importDefault(require("./Controller"));
 var onAvailableCallbackId = '__onGCastApiAvailable';
 var CastOptions = (function () {
     function CastOptions() {
@@ -65,10 +69,11 @@ exports.CastOptions = CastOptions;
 var ChromecastInstance = (function () {
     function ChromecastInstance() {
         this._ready = false;
-        this._mediaQueue = [];
         this._readyStateListener = function () { };
+        this._shutdownStateListener = function () { };
         this._errorListener = function () { };
-        this._eventHandler = new PlayerEvent_1.PlayerEventDelegate();
+        this._eventDelegate = new PlayerEvent_1.PlayerEventDelegate();
+        this._queue = new Queue_1.default();
     }
     ChromecastInstance.prototype.isReady = function () {
         return this._ready;
@@ -100,12 +105,15 @@ var ChromecastInstance = (function () {
     ChromecastInstance.prototype.setReadyStateListner = function (listener) {
         this._readyStateListener = listener;
     };
+    ChromecastInstance.prototype.setShutownStateListener = function (listener) {
+        this._shutdownStateListener = listener;
+    };
     ChromecastInstance.prototype.setErrorListener = function (listener) {
         this._errorListener = listener;
     };
     Object.defineProperty(ChromecastInstance.prototype, "eventDelegate", {
         get: function () {
-            return this._eventHandler;
+            return this._eventDelegate;
         },
         enumerable: true,
         configurable: true
@@ -124,47 +132,97 @@ var ChromecastInstance = (function () {
         enumerable: true,
         configurable: true
     });
+    Object.defineProperty(ChromecastInstance.prototype, "session", {
+        get: function () {
+            return this._castSession;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(ChromecastInstance.prototype, "currentQueueItem", {
+        get: function () {
+            var _this = this;
+            var item = this._queue.items.find(function (i) { return i.media.contentId == _this.getCurrentMedia().contentId; });
+            return item ? item.itemId : -1;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    ChromecastInstance.prototype.getCurrentMedia = function () {
+        return this._castSession.getMediaSession().media;
+    };
     ChromecastInstance.prototype.disconnect = function () {
-        this._session.endSession(true);
+        this._castSession.endSession(true);
         this.removeListeners();
         this._ready = false;
+    };
+    ChromecastInstance.prototype.on = function (event, fn) {
+        this._eventDelegate.addListener(event, fn);
     };
     ChromecastInstance.prototype.newMediaEntity = function (mediaId, mimeType, title, image, meta) {
         return Media_1.default.newEntity(mediaId, mimeType, title, image, meta);
     };
     ChromecastInstance.prototype.playOne = function (media) {
         var request = new chrome.cast.media.LoadRequest(media);
-        this._session.loadMedia(request)
-            .then(this.onMediaLoaded, this.onMediaLoadError)
+        this._castSession.loadMedia(request)
+            .then(this.createController, this.onMediaLoadError)
             .catch(console.error);
     };
-    ChromecastInstance.prototype.queue = function (items) {
-        var _this = this;
-        items.forEach(function (i) { return _this._mediaQueue.push(new chrome.cast.media.QueueItem(i)); });
+    ChromecastInstance.prototype.queueItems = function (items) {
+        this._queue.add(items.map(function (i) { return new chrome.cast.media.QueueItem(i); }));
     };
     ChromecastInstance.prototype.addToQueue = function (item) {
-        this._mediaQueue.push(new chrome.cast.media.QueueItem(item));
+        var _this = this;
+        this._queue.append(new chrome.cast.media.QueueItem(item), this._castSession.getMediaSession())
+            .then(function () { return _this.emitQueueEvent('queueInsert', _this._queue.items); })
+            .catch(this.onError);
+    };
+    ChromecastInstance.prototype.removeFromQueue = function (item) {
+        var _this = this;
+        this._queue.removeItem(item, this._castSession.getMediaSession())
+            .then(function () { return _this.emitQueueEvent('queueRemove', _this._queue.items); })
+            .catch(this.onError);
+    };
+    ChromecastInstance.prototype.reorderQueue = function () {
+        var items = typeof arguments[0] == 'number' ? [arguments[0]] : arguments[0];
+        this._queue.reorderItems(items, this._castSession.getMediaSession(), arguments[1] || null);
     };
     ChromecastInstance.prototype.startQueue = function () {
-        var request = new chrome.cast.media.QueueLoadRequest(this._mediaQueue);
-        this._mediaSession.queueLoad(request, this.onMediaLoaded, this.onError);
+        var request = new chrome.cast.media.QueueLoadRequest(this._queue.items);
+        this._castSessionData.queueLoad(request, this.onQueueLoaded, this.onError);
+        this._queue.start();
+        this.emitQueueEvent('queueStart');
     };
-    ChromecastInstance.prototype.onSessionStateChange = function (event) {
-        switch (event.sessionState) {
-            case cast.framework.SessionState.SESSION_ENDED:
-                break;
-            case cast.framework.SessionState.SESSION_STARTED:
-                this._session = this._context.getCurrentSession();
-                this._mediaSession = this._session.getSessionObj();
-                this._readyStateListener();
-                break;
-        }
+    ChromecastInstance.prototype.restartCurrent = function () {
+        Controller_1.default.seekToTime(0);
     };
-    ChromecastInstance.prototype.onMediaLoaded = function () {
+    ChromecastInstance.prototype.playNext = function () {
+        this._castSession.getMediaSession().queueNext(this.onQueuedItemChange, this.onError);
+    };
+    ChromecastInstance.prototype.playPrevious = function () {
+        this._castSession.getMediaSession().queuePrev(this.onQueuedItemChange, this.onError);
+    };
+    ChromecastInstance.prototype.createController = function () {
         this.removeListeners();
         this._player = new cast.framework.RemotePlayer();
         this._controller = new cast.framework.RemotePlayerController(this._player);
         this._controller.addEventListener(cast.framework.RemotePlayerEventType.ANY_CHANGE, this.onPlayerEvent);
+    };
+    ChromecastInstance.prototype.onSessionStateChange = function (event) {
+        switch (event.sessionState) {
+            case cast.framework.SessionState.SESSION_ENDED:
+                this._shutdownStateListener();
+                break;
+            case cast.framework.SessionState.SESSION_STARTED:
+                this._castSession = this._context.getCurrentSession();
+                this._castSessionData = this._castSession.getSessionObj();
+                this._readyStateListener();
+                break;
+        }
+    };
+    ChromecastInstance.prototype.onQueueLoaded = function () {
+        this.createController();
+        this.emitQueueEvent('queueLoad');
     };
     ChromecastInstance.prototype.onMediaLoadError = function (errorCode) {
         this._errorListener(new chrome.cast.Error(errorCode));
@@ -172,8 +230,14 @@ var ChromecastInstance = (function () {
     ChromecastInstance.prototype.onError = function (error) {
         this._errorListener(error);
     };
+    ChromecastInstance.prototype.onQueuedItemChange = function () {
+        this.emitQueueEvent('queueItem', this.currentQueueItem);
+    };
     ChromecastInstance.prototype.onPlayerEvent = function (event) {
-        this._eventHandler.invoke(event.field, event.value);
+        this._eventDelegate.invoke(event.field, event.value);
+    };
+    ChromecastInstance.prototype.emitQueueEvent = function (event, value) {
+        this._eventDelegate.invoke(event, value);
     };
     ChromecastInstance.prototype.removeListeners = function () {
         if (!!this._controller)
@@ -184,7 +248,7 @@ var ChromecastInstance = (function () {
     ], ChromecastInstance.prototype, "onSessionStateChange", null);
     tslib_1.__decorate([
         Bind_1.default
-    ], ChromecastInstance.prototype, "onMediaLoaded", null);
+    ], ChromecastInstance.prototype, "onQueueLoaded", null);
     tslib_1.__decorate([
         Bind_1.default
     ], ChromecastInstance.prototype, "onMediaLoadError", null);
@@ -193,13 +257,19 @@ var ChromecastInstance = (function () {
     ], ChromecastInstance.prototype, "onError", null);
     tslib_1.__decorate([
         Bind_1.default
+    ], ChromecastInstance.prototype, "onQueuedItemChange", null);
+    tslib_1.__decorate([
+        Bind_1.default
     ], ChromecastInstance.prototype, "onPlayerEvent", null);
+    tslib_1.__decorate([
+        Bind_1.default
+    ], ChromecastInstance.prototype, "emitQueueEvent", null);
     return ChromecastInstance;
 }());
 var Chromecast = new ChromecastInstance();
 exports.default = Chromecast;
 
-},{"./Bind":2,"./Media":5,"./PlayerEvent":6,"tslib":8}],4:[function(require,module,exports){
+},{"./Bind":2,"./Controller":4,"./Media":5,"./PlayerEvent":6,"./Queue":7,"tslib":9}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
@@ -245,7 +315,7 @@ var MediaControllerInstance = (function () {
 var Controller = new MediaControllerInstance();
 exports.default = Controller;
 
-},{"./Chromecast":3,"tslib":8}],5:[function(require,module,exports){
+},{"./Chromecast":3,"tslib":9}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var MediaImpl = (function () {
@@ -287,13 +357,17 @@ exports.default = Media;
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
 var Bind_1 = tslib_1.__importDefault(require("./Bind"));
+var Chromecast_1 = tslib_1.__importDefault(require("./Chromecast"));
 var PlayerEventDelegate = (function () {
     function PlayerEventDelegate() {
         this._handlers = new Map();
+        this._listeners = new Map();
         this._playbackListeners = new Map();
         this._castListeners = new Map();
         this._playerCapabilityListeners = new Map();
+        this._queueListeners = new Map();
         this._nativeEventListeners = new Map();
+        this._currentInfo = null;
         this.bind('isConnected', this.isConnected);
         this.bind('isMediaLoaded', this.isMediaLoaded);
         this.bind('duration', this.onDurationChanged);
@@ -311,9 +385,18 @@ var PlayerEventDelegate = (function () {
         this.bind('imageUrl', this.onImageUrlChange);
         this.bind('mediaInfo', this.onMediaInfoChanged);
         this.bind('playerState', this.onPlayerState);
+        this.bind('queueLoad', this.onQueueLoaded);
+        this.bind('queueStart', this.onQueueStart);
+        this.bind('queueComplete', this.onQueueStopped);
+        this.bind('queueInsert', this.onQueueUpdated);
+        this.bind('queueRemove', this.onQueueUpdated);
+        this.bind('queueItem', this.onQueueItemChanged);
     }
     PlayerEventDelegate.prototype.bind = function (id, handler) {
         this._handlers.set(id, handler);
+    };
+    PlayerEventDelegate.prototype.addListener = function (event, handler) {
+        this._listeners.set(event, handler);
     };
     PlayerEventDelegate.prototype.registerPlaybackEventListener = function (listener) {
         var _this = this;
@@ -333,6 +416,12 @@ var PlayerEventDelegate = (function () {
         this._playerCapabilityListeners.set(random, listener);
         return function () { return _this._playerCapabilityListeners.delete(random); };
     };
+    PlayerEventDelegate.prototype.registerQueueEventListener = function (listener) {
+        var _this = this;
+        var random = Math.random();
+        this._queueListeners.set(random, listener);
+        return function () { return _this._queueListeners.delete(random); };
+    };
     PlayerEventDelegate.prototype.registerNativeEventListener = function (listener) {
         var _this = this;
         var random = Math.random();
@@ -344,6 +433,14 @@ var PlayerEventDelegate = (function () {
         if (this._handlers.has(eventId)) {
             this._handlers.get(eventId)(value);
         }
+        if (this._listeners.has(eventId)) {
+            this._listeners.get(eventId)(value);
+        }
+    };
+    PlayerEventDelegate.prototype.matchMedia = function (that) {
+        if (!this._currentInfo || !that)
+            return false;
+        return this._currentInfo.contentId == that.contentId;
     };
     PlayerEventDelegate.prototype.isConnected = function (is) {
         if (is) {
@@ -357,6 +454,10 @@ var PlayerEventDelegate = (function () {
         this._playbackListeners.forEach(function (l) { return l.onTimeUpdate(time); });
     };
     PlayerEventDelegate.prototype.onPlayerState = function (state) {
+        if (state == null) {
+            this._queueListeners.forEach(function (l) { return l.onStopped(); });
+            return;
+        }
         switch (state) {
             case 'IDLE':
                 this._playbackListeners.forEach(function (l) { return l.onIdle(); });
@@ -378,7 +479,6 @@ var PlayerEventDelegate = (function () {
         }
         else {
             this._castListeners.forEach(function (l) { return l.onMediaUnloaded(); });
-            this._playbackListeners.forEach(function (l) { return l.onEnded(); });
         }
     };
     PlayerEventDelegate.prototype.onDurationChanged = function (duration) {
@@ -386,6 +486,11 @@ var PlayerEventDelegate = (function () {
     };
     PlayerEventDelegate.prototype.onMediaInfoChanged = function (info) {
         this._castListeners.forEach(function (l) { return l.onMediaInfoChanged(info); });
+        if (!this.matchMedia(info) && !!this._currentInfo) {
+            this._playbackListeners.forEach(function (l) { return l.onEnded(); });
+            this._queueListeners.forEach(function (l) { return l.onItemChanged(Chromecast_1.default.currentQueueItem); });
+            this._currentInfo = info;
+        }
     };
     PlayerEventDelegate.prototype.onMuteChange = function (is) {
         this._playbackListeners.forEach(function (l) { return l.onMuteChange(is); });
@@ -421,6 +526,21 @@ var PlayerEventDelegate = (function () {
     };
     PlayerEventDelegate.prototype.canSeek = function (can) {
         this._playerCapabilityListeners.forEach(function (l) { return l.canSeek(can); });
+    };
+    PlayerEventDelegate.prototype.onQueueLoaded = function () {
+        this._queueListeners.forEach(function (l) { return l.onLoaded(); });
+    };
+    PlayerEventDelegate.prototype.onQueueStart = function () {
+        this._queueListeners.forEach(function (l) { return l.onStarted(); });
+    };
+    PlayerEventDelegate.prototype.onQueueStopped = function () {
+        this._queueListeners.forEach(function (l) { return l.onStopped(); });
+    };
+    PlayerEventDelegate.prototype.onQueueUpdated = function () {
+        this._queueListeners.forEach(function (l) { return l.onUpdated(); });
+    };
+    PlayerEventDelegate.prototype.onQueueItemChanged = function (item) {
+        this._queueListeners.forEach(function (l) { return l.onItemChanged(item); });
     };
     tslib_1.__decorate([
         Bind_1.default
@@ -473,11 +593,96 @@ var PlayerEventDelegate = (function () {
     tslib_1.__decorate([
         Bind_1.default
     ], PlayerEventDelegate.prototype, "canSeek", null);
+    tslib_1.__decorate([
+        Bind_1.default
+    ], PlayerEventDelegate.prototype, "onQueueLoaded", null);
+    tslib_1.__decorate([
+        Bind_1.default
+    ], PlayerEventDelegate.prototype, "onQueueStart", null);
+    tslib_1.__decorate([
+        Bind_1.default
+    ], PlayerEventDelegate.prototype, "onQueueStopped", null);
+    tslib_1.__decorate([
+        Bind_1.default
+    ], PlayerEventDelegate.prototype, "onQueueUpdated", null);
+    tslib_1.__decorate([
+        Bind_1.default
+    ], PlayerEventDelegate.prototype, "onQueueItemChanged", null);
     return PlayerEventDelegate;
 }());
 exports.PlayerEventDelegate = PlayerEventDelegate;
 
-},{"./Bind":2,"tslib":8}],7:[function(require,module,exports){
+},{"./Bind":2,"./Chromecast":3,"tslib":9}],7:[function(require,module,exports){
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+var Queue = (function () {
+    function Queue() {
+        this._started = false;
+        this._items = [];
+    }
+    Object.defineProperty(Queue.prototype, "started", {
+        get: function () {
+            return this._started;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Object.defineProperty(Queue.prototype, "items", {
+        get: function () {
+            return this._items;
+        },
+        enumerable: true,
+        configurable: true
+    });
+    Queue.prototype.start = function () {
+        this._started = true;
+    };
+    Queue.prototype.add = function (items, media) {
+        var _this = this;
+        return new Promise(function (resolve, reject) {
+            items.forEach(function (i) { return _this._items.push(i); });
+            if (_this._started && !!media) {
+                var req = new chrome.cast.media.QueueInsertItemsRequest(items);
+                media.queueInsertItems(req, resolve, reject);
+            }
+            else {
+                resolve();
+            }
+        });
+    };
+    Queue.prototype.append = function (item, media) {
+        return this.add([item], media);
+    };
+    Queue.prototype.removeItem = function (itemId, media) {
+        var _this = this;
+        return new Promise(function (resolve, reject) {
+            _this._items = _this._items.splice(itemId, 1);
+            if (_this._started && !!media) {
+                media.queueRemoveItem(itemId, resolve, reject);
+            }
+            else {
+                resolve();
+            }
+        });
+    };
+    Queue.prototype.reorderItems = function (items, media, before) {
+        var _this = this;
+        return new Promise(function (resolve, reject) {
+            var req = new chrome.cast.media.QueueReorderItemsRequest(items);
+            var success = function () {
+                _this._items = media.items;
+                resolve();
+            };
+            if (!!before)
+                req.insertBefore = before;
+            media.queueReorderItems(req, success, reject);
+        });
+    };
+    return Queue;
+}());
+exports.default = Queue;
+
+},{}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
@@ -494,6 +699,9 @@ var Register = (function () {
     Register.forPlayerCapabilityEvent = function (listener) {
         return Chromecast_1.default.eventDelegate.registerPlayerCapabilityListener(listener);
     };
+    Register.forQueueEvent = function (listener) {
+        return Chromecast_1.default.eventDelegate.registerQueueEventListener(listener);
+    };
     Register.forNativeEvent = function (listener) {
         return Chromecast_1.default.eventDelegate.registerNativeEventListener(listener);
     };
@@ -501,7 +709,7 @@ var Register = (function () {
 }());
 exports.default = Register;
 
-},{"./Chromecast":3,"tslib":8}],8:[function(require,module,exports){
+},{"./Chromecast":3,"tslib":9}],9:[function(require,module,exports){
 (function (global){
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation. All rights reserved.
@@ -748,9 +956,11 @@ var __importDefault;
 });
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],9:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
+"use strict";
 
 const { Chromecast, Register, Controller } = require('..')
+
 
 const toggle = document.getElementById('pp')
 toggle.addEventListener('click', () => Controller.togglePlay())
@@ -761,6 +971,15 @@ stop.addEventListener('click', () => {
   Chromecast.disconnect()
 })
 
+const qb = document.getElementById('qb')
+qb.addEventListener('click', () => {
+  const e = createEntity('http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', 'For Bigger Blazes', 'https://payloads.enaturelive.com/posters/2D19CDAC641B3437/T-8403CE489DB831A4.jpg')
+  Chromecast.addToQueue(e)
+})
+
+const skip = document.getElementById('skip')
+skip.addEventListener('click', () => Chromecast.playNext())
+
 const seek = document.getElementById('seek')
 seek.addEventListener('click', () => Controller.seekToPercentage(.98))
 
@@ -769,7 +988,10 @@ const options = {
   autoJoinPolicy: 'origin_scoped'
 }
 
-const videoQueue = []
+const videoQueue = [
+  createEntity('http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', 'Big Buck Bunny', 'https://payloads.enaturelive.com/posters/0EE08B6A217E0ADC/T-3B709EC02A1BEE9A.JPG'),
+  createEntity('http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', "Elephant's Dream", 'https://payloads.enaturelive.com/posters/EA7A70A934B8539B/T-2B5081B5E19F2471.jpg')
+]
 
 Chromecast.initializeCastService(options)
   .catch(console.error)
@@ -778,19 +1000,18 @@ Chromecast.setReadyStateListner(() => onReady())
 function createEntity(url, title, image) {
   const item = Chromecast.newMediaEntity(url, 'video/mp4', title, image)
   videoQueue.push(item)
+  return item
 }
 
 function onReady() {
-  createEntity('http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', 'Big Buck Bunny', 'https://payloads.enaturelive.com/posters/0EE08B6A217E0ADC/T-3B709EC02A1BEE9A.JPG')
-  createEntity('http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', "Elephant's Dream", 'https://payloads.enaturelive.com/posters/EA7A70A934B8539B/T-2B5081B5E19F2471.jpg')
-  Chromecast.queue(videoQueue)
+  Chromecast.queueItems(videoQueue)
   Chromecast.startQueue()
-
   Register.forNativeEvent({
     onEvent(event, value) {
       console.log(event, value)
     }
   })
+
   
   Register.forPlayerEvent({
     onTimeUpdate(time) {},
@@ -805,10 +1026,26 @@ function onReady() {
       
     },
   })
-  
+  Register.forQueueEvent({
+    onLoaded() {
+      console.log('q loaded')
+    },
+    onStarted() {
+      console.log('q started')
+    },
+    onStopped() {
+      console.log('q stopped')
+    },
+    onUpdate() {
+      console.log('q changed')
+    },
+    onItemChange() {
+      console.log('q item changed')
+    },
+  })
 }
 
 
 
 
-},{"..":1}]},{},[9]);
+},{"..":1}]},{},[10]);

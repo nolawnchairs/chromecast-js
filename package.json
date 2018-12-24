@@ -29,6 +29,6 @@
   },
   "scripts": {
     "start": "nodemon",
-    "dts": "dts-bundle-generator index.ts -o index.d.ts"
+    "dts": "dts-bundle-generator index.ts -o types.d.ts"
   }
 }

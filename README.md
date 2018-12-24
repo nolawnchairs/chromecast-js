@@ -10,17 +10,22 @@ This library is written in [TypeScript](https://www.typescriptlang.org/), with T
 
 ## Install
 Install via NPM
+
 `npm i @nolawnchairs/chromecast`
 
 Or Yarn...
+
 `yarn add @nolawnchairs/chromecast`
 
 ## Getting Started
 The package contains the following modules:
 
 **Chromecast** - The base singleton class that manages the connection, media and queuing
+
 **Options** - Sets the options for the cast framework
+
 **Controller** - Controls the media playback
+
 **Register** - Registering for events
 
 `import { Chromecast, Options, Controller, Register } from '@nolawnchairs/chromecast`
@@ -38,8 +43,8 @@ const options = {
 // Initialize chromecast service
 Chromecast.initializeCastService(options).catch(console.error)
 Chromecast.setReadyStateListner(() =>  {
-	// Add your logic here. Anything that uses the cast
-	// service must be called after the service is ready
+  // Add your logic here. Anything that uses the cast
+  // service must be called after the service is ready
 })
 ```
 You will also need to add Google's web component to your DOM. This creates the cast icon that triggers the connection with Chrome.
@@ -66,7 +71,7 @@ Simple, eh? Queuing is much better, though...
 // are stored as an array
 const media = [...]
 const queue = media.map(m => {
-	return Chromecast.newMediaEntity(m.url, m.mime, m.title, m.image)
+  return Chromecast.newMediaEntity(m.url, m.mime, m.title, m.image)
 })
 
 // Add these items to the queue
@@ -133,12 +138,12 @@ We can also listen to all events by registering. All `Register` methods return a
 // Register for all events
 const unregisterHook = Register.forEvents(myEventHandler)
 function eventHandler(eventName, eventData) {
-	console.log(eventName, eventData)
-	switch (eventName) {
-		case 'currentTime':
-			doSomethingWithTime(eventData)
-			break
-	}
+  console.log(eventName, eventData)
+    switch (eventName) {
+      case 'currentTime':
+        doSomethingWithTime(eventData)
+        break
+    }
 }
 
 // unregister all events

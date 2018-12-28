@@ -3,23 +3,27 @@ import { UnregisterHook, Listeners } from './PlayerEvent'
 
 export default class Register {
 
-  static forConnectionEvents(listener: Listeners.CastEvent): UnregisterHook {
-    return Chromecast.eventDelegate.registerConnectionEventListener(listener)
+  static forCastEvents(handler: Listeners.CastEvent): UnregisterHook {
+    return Chromecast.eventDelegate.registerCastEventListener(handler)
   }
 
-  static forPlayerEvents(listener: Listeners.PlaybackEvent): UnregisterHook {
-    return Chromecast.eventDelegate.registerPlaybackEventListener(listener)
+  static forPlaybackEvents(handler: Listeners.PlaybackEvent): UnregisterHook {
+    return Chromecast.eventDelegate.registerPlaybackEventListener(handler)
   }
 
-  static forPlayerCapabilityEvents(listener: Listeners.PlayerCapabilityEvent): UnregisterHook {
-    return Chromecast.eventDelegate.registerPlayerCapabilityListener(listener)
+  static forPlayerCapabilityEvents(handler: Listeners.PlayerCapabilityEvent): UnregisterHook {
+    return Chromecast.eventDelegate.registerPlayerCapabilityListener(handler)
   }
 
-  static forQueueEvents(listener: Listeners.QueueEvent): UnregisterHook {
-    return Chromecast.eventDelegate.registerQueueEventListener(listener)
+  static forQueueEvents(handler: Listeners.QueueEvent): UnregisterHook {
+    return Chromecast.eventDelegate.registerQueueEventListener(handler)
   }
 
-  static forEvents(listener: Listeners.NativeEvent): UnregisterHook {
-    return Chromecast.eventDelegate.registerNativeEventListener(listener)
+  static forEvents(handler: Listeners.NativeEvent): UnregisterHook {
+    return Chromecast.eventDelegate.registerNativeEventListener(handler)
+  }
+
+  static unregisterAll() {
+    Chromecast.eventDelegate.removeAll()
   }
 }

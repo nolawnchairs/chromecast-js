@@ -35,7 +35,10 @@ class MediaControllerInstance {
     Chromecast.controller.seek()
   }
 
-  stop() {
+  stop(drainQueue?: boolean) {
+    if (drainQueue) {
+      Chromecast.queue.drain()
+    }
     Chromecast.controller.stop()
   }
 
@@ -44,6 +47,10 @@ class MediaControllerInstance {
       throw new Error('Controller::adjustVolume - Volume value must be a floating point number between 0 and 1')
     Chromecast.player.volumeLevel = volume
     Chromecast.controller.setVolumeLevel()
+  }
+
+  rewind() {
+    this.seekToTime(0)
   }
 }
 

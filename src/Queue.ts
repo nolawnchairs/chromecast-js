@@ -1,14 +1,11 @@
 
-export declare type QueueEventType = 'queueStart'
-  | 'queueComplete'
-  | 'queueInsert'
-  | 'queueRemove'
-  | 'queueItem'
-
 export default class Queue {
 
   private _started: boolean = false
   private _items: chrome.cast.media.QueueItem[] = []
+  private _queuedItemMapping: number[] = []
+  private _currentItemId: number = 0
+  private _currentQueueIndex: number = 0
 
   get started(): boolean {
     return this._started
@@ -18,34 +15,57 @@ export default class Queue {
     return this._items
   }
 
-  start() {
-    this._started = true
+  get currentItemId(): number {
+    return this._currentItemId
   }
 
-  add(items: chrome.cast.media.QueueItem[], media?: chrome.cast.media.Media): Promise<void> {
-    return new Promise((resolve, reject) => {
-      items.forEach(i => this._items.push(i))
-      if (this._started && !!media) {
-        const req = new chrome.cast.media.QueueInsertItemsRequest(items)
-        media.queueInsertItems(req, resolve, reject)
-      } else {
-        resolve()
-      }
+  get currentQueueIndex(): number {
+    return this._currentQueueIndex
+  }
+
+  get length(): number {
+    return this._queuedItemMapping.length
+  }
+
+  start(mediaSession: chrome.cast.media.Media) {
+    this._started = true
+    this._currentItemId = mediaSession.currentItemId
+  }
+
+  add(items: chrome.cast.media.QueueItem[]) {
+    items.forEach((item, i) => {
+      this._items.push(item)
+      this._queuedItemMapping.push(i + 1)
     })
   }
 
-  append(item: chrome.cast.media.QueueItem, media?: chrome.cast.media.Media): Promise<void> {
-    return this.add([item], media)
-  }
-
-  removeItem(itemId: number, media?: chrome.cast.media.Media): Promise<void> {
+  append(item: chrome.cast.media.QueueItem, media: chrome.cast.media.Media): Promise<void> {
     return new Promise((resolve, reject) => {
-      this._items = this._items.splice(itemId, 1)
-      if (this._started && !!media) {
-        media.queueRemoveItem(itemId, resolve, reject)
-      } else {
+      const success = () => {
+        this._items.push(item)
+        this._queuedItemMapping.push(Math.max(...this._queuedItemMapping) + 1)
+        this.debug(media)
         resolve()
       }
+      const req = new chrome.cast.media.QueueInsertItemsRequest([item])
+      media.queueInsertItems(req, success, reject)
+    })
+  }
+
+  removeItem(queueId: number, media: chrome.cast.media.Media): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const success = () => {
+        console.log('succeded in removing item %d', queueId)
+        this._items.splice(queueId, 1)
+        this._queuedItemMapping.splice(queueId, 1)
+        console.log('current id is %d', this._currentItemId)
+        console.log(this._queuedItemMapping, this._items.map(i => i.media.contentId))
+        resolve()
+      }
+
+      const itemId = this._queuedItemMapping[queueId]
+      media.queueRemoveItem(itemId, success, reject)
+
     })
   }
 
@@ -60,5 +80,41 @@ export default class Queue {
         req.insertBefore = before
       media.queueReorderItems(req, success, reject)
     })
+  }
+
+  /**
+   * Sets the current itemId and currentQueueIndex
+   * @param id current queue itemId as described by the cast API
+   */
+  setCurrentItemId(id: number) {
+    this._currentItemId = id
+    this._currentQueueIndex = this.findQueueIndex(id)
+  }
+
+  /**
+   * Find the zero-indexed queue index from the itemId of the cast media session
+   * @param mediaItemId current queue item id as described by the cast API
+   */
+  findQueueIndex(mediaItemId: number): number {
+    const t = this._queuedItemMapping.indexOf(mediaItemId)
+    if (t > -1)
+      return this._items.findIndex(($, i) => i == t)
+  }
+
+  /**
+   * Clears the local queue information
+   */
+  clear() {
+    this._queuedItemMapping = []
+    this._items = []
+  }
+
+  drain() {
+
+  }
+
+  debug(media: chrome.cast.media.Media) {
+    const items = media.items.map(i => `${i.itemId}: ${i.media.contentId}`)
+    console.log(items)
   }
 }

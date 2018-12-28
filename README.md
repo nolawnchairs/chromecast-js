@@ -8,6 +8,8 @@ Since this is more or less an *abstraction* around Google's native Cast Sender A
 
 This library is written in [TypeScript](https://www.typescriptlang.org/), with TypeScript in mind.
 
+> **Note** this is not in any way production-ready at the moment. Use at your own risk.
+
 ## Install
 Install via NPM
 

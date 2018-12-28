@@ -37,7 +37,7 @@ export declare namespace Listeners {
      * Called when the remote player's volume level changes
      * @param volume volume ratio, float between 0 and 1
      */
-    onVolumeChanged(volume: number): void;
+    onVolumeChange(volume: number): void;
     /**
      * Called when the current media entity finishes playback
      */
@@ -62,10 +62,9 @@ export declare namespace Listeners {
     canPause(can: boolean): void;
   }
   interface NativeEvent {
-    onEvent(eventId: string, value: any): void;
+    onEvent(eventType: string | EventType, value: any): void;
   }
   interface QueueEvent {
-    onLoaded(): void
     onStarted(): void
     onStopped(): void
     onUpdated(): void
@@ -80,14 +79,15 @@ declare class Media {
   static newEntity(mediaId: string, mimeType: string, title?: string, image?: string, meta?: AbstractMetaData): chrome.cast.media.MediaInfo;
 }
 
-export interface PartialOptions {
+export interface Options {
   autoJoinPolicy?: string;
   receiverApplicationId?: string;
   language?: string;
+  resumeSavedSession?: boolean;
 }
 export declare class CastOptions {
   constructor();
-  setOptions(options: PartialOptions): void;
+  setOptions(options: Options): void;
   readonly options: cast.framework.CastOptions;
 }
 
@@ -98,15 +98,14 @@ export declare class Chromecast {
    * established and can accept media requests
    */
   static isReady(): boolean;
-  static initializeCastService(options?: PartialOptions): Promise<void>;
+  static initializeCastService(options?: Options): Promise<void>;
   static setReadyStateListner(listener: () => void): void;
   static setShutownStateListener(listener: () => void): void;
   static setErrorListener(listener: (e: chrome.cast.Error) => void): void;
   static readonly controller: cast.framework.RemotePlayerController;
   static readonly player: cast.framework.RemotePlayer;
   static readonly session: cast.framework.CastSession;
-  static readonly currentQueueItem: number;
-  readonly AutoJoinPolicy: {
+  static readonly AutoJoinPolicy: {
     CUSTOM_CONTROLLER_SCOPED: string;
     TAB_AND_ORIGIN_SCOPED: string;
     ORIGIN_SCOPED: string;
@@ -115,29 +114,29 @@ export declare class Chromecast {
   static disconnect(): void;
   static on(event: EventType, fn: HandlerFn): void;
   static off(event: EventType): void;
-  static getCurrentMedia(): chrome.cast.media.MediaInfo;
+  static getCurrentMedia(): chrome.cast.media.MediaInfo | null;
   static newMediaEntity(mediaId: string, mimeType: string): chrome.cast.media.MediaInfo;
   static newMediaEntity(mediaId: string, mimeType: string, title: string): chrome.cast.media.MediaInfo;
   static newMediaEntity(mediaId: string, mimeType: string, title: string, image: string): chrome.cast.media.MediaInfo;
   static newMediaEntity(mediaId: string, mimeType: string, title?: string, image?: string, meta?: AbstractMetaData): chrome.cast.media.MediaInfo;
-  static playOne(media: chrome.cast.media.MediaInfo): void;
-  static queueItems(items: chrome.cast.media.MediaInfo[]): void;
+  static enqueue(item: chrome.cast.media.MediaInfo): void;
+  static enqueueItems(items: chrome.cast.media.MediaInfo[]): void;
   static appendToQueue(item: chrome.cast.media.MediaInfo): void;
   static removeFromQueue(item: number): void;
-  static reorderQueue(items: number[], before?: number): void
-  static reorderQueue(item: number, before?: number): void
+  static reorderQueue(from: number, to: number): void
   static startQueue(): void;
+  static startQueue(startTime: number): void;
   static playNext(): void;
   static playPrevious(): void;
-  static restartCurrent(): void;
 }
 
 export declare class Register {
-  static forConnectionEvents(listener: Listeners.CastEvent): UnregisterHook;
-  static forPlayerEvents(listener: Listeners.PlaybackEvent): UnregisterHook;
-  static forPlayerCapabilityEvents(listener: Listeners.PlayerCapabilityEvent): UnregisterHook;
-  static forQueueEvents(listener: Listeners.QueueEvent): UnregisterHook;
-  static forEvents(listener: Listeners.NativeEvent): UnregisterHook;
+  static forCastEvents(handler: Listeners.CastEvent): UnregisterHook;
+  static forPlaybackEvents(handler: Listeners.PlaybackEvent): UnregisterHook;
+  static forPlayerCapabilityEvents(handler: Listeners.PlayerCapabilityEvent): UnregisterHook;
+  static forQueueEvents(handler: Listeners.QueueEvent): UnregisterHook;
+  static forEvents(handler: Listeners.NativeEvent): UnregisterHook;
+  static unregisterAll(): void;
 }
 export declare class Controller {
   static togglePlay(): void;
@@ -146,7 +145,9 @@ export declare class Controller {
   static seekToTime(seconds: number): void;
   static seekToPercentage(ratio: number): void;
   static stop(): void;
+  static stop(drainQueue: boolean): void;
   static adjustVolume(volume: number): void;
+  static rewind(): void;
 }
 
 export type EventType = 'isConnected' | 'isMediaLoaded' | 'duration'
@@ -154,7 +155,7 @@ export type EventType = 'isConnected' | 'isMediaLoaded' | 'duration'
   | 'isMuted' | 'canPause' | 'canSeek' | 'displayName' | 'statusText'
   | 'title' | 'displayStatus' | 'imageUrl'
   | 'mediaInfo' | 'playerState' | & QueueEventType
-export declare type QueueEventType = 'queueLoad' | 'queueComplete' | 'queueInsert' | 'queueRemove'
+export declare type QueueEventType = 'queueLoad' | 'queueComplete' | 'queueInsert' | 'queueRemove' | 'queueItem' | 'queueUpdate'
 
 
 // Type definitions for Chrome Cast application development

@@ -1,6 +1,5 @@
 import Bind from './Bind'
-import Chromecast from './Chromecast'
-import { QueueEventType } from './Queue'
+import MediaQueue, { QueueEventType } from './MediaQueue'
 
 export type HandlerFn = (value: any) => void
 export type UnregisterHook = () => void
@@ -15,7 +14,7 @@ export namespace Listeners {
     onIdle(): void
     onStop(): void
     onMuteChange(muted: boolean): void
-    onVolumeChanged(volume: number): void
+    onVolumeChange(volume: number): void
     onEnded(): void
   }
 
@@ -59,16 +58,19 @@ export type EventType = 'isConnected' | 'isMediaLoaded' | 'duration'
 
 export class PlayerEventDelegate {
 
-  private _handlers: Map<string, HandlerFn> = new Map()
+  private _queue: MediaQueue
+  private _mediaCompleteListener: () => void
   private _listeners: Map<EventType, HandlerFn> = new Map()
+  private _allHandlers: Map<string, HandlerFn> = new Map()
   private _playbackListeners: Map<number, Listeners.PlaybackEvent> = new Map()
   private _castListeners: Map<number, Listeners.CastEvent> = new Map()
   private _playerCapabilityListeners: Map<number, Listeners.PlayerCapabilityEvent> = new Map()
   private _queueListeners: Map<number, Listeners.QueueEvent> = new Map()
   private _nativeEventListeners: Map<number, Listeners.NativeEvent> = new Map()
-  private _currentInfo: chrome.cast.media.MediaInfo = null
+  //private _currentInfo: chrome.cast.media.MediaInfo = null
 
-  constructor() {
+  constructor(queue: MediaQueue) {
+    this._queue = queue
     this.bind('isConnected', this.isConnected)
     this.bind('isMediaLoaded', this.isMediaLoaded)
     this.bind('duration', this.onDurationChanged)
@@ -90,11 +92,22 @@ export class PlayerEventDelegate {
     this.bind('queueComplete', this.onQueueStopped)
     this.bind('queueInsert', this.onQueueUpdated)
     this.bind('queueRemove', this.onQueueUpdated)
+    this.bind('queueUpdate', this.onQueueUpdated)
     this.bind('queueItem', this.onQueueItemChanged)
   }
 
   private bind(id: EventType, handler: (value: any) => void) {
-    this._handlers.set(id, handler)
+    this._allHandlers.set(id, handler)
+  }
+
+  removeAll() {
+    this._listeners.clear()
+    this._playbackListeners.clear()
+    this._castListeners.clear()
+    this._playerCapabilityListeners.clear()
+    this._queueListeners.clear()
+    this._nativeEventListeners.clear()
+    this._allHandlers.clear()
   }
 
   addListener(event: EventType, handler: HandlerFn) {
@@ -105,13 +118,17 @@ export class PlayerEventDelegate {
     this._listeners.delete(event)
   }
 
+  setMediaCompleteListener(listener: () => void) {
+    this._mediaCompleteListener = listener
+  }
+
   registerPlaybackEventListener(listener: Listeners.PlaybackEvent): UnregisterHook {
     const random = Math.random()
     this._playbackListeners.set(random, listener)
     return () => this._playbackListeners.delete(random)
   }
 
-  registerConnectionEventListener(listener: Listeners.CastEvent): UnregisterHook {
+  registerCastEventListener(listener: Listeners.CastEvent): UnregisterHook {
     const random = Math.random()
     this._castListeners.set(random, listener)
     return () => this._castListeners.delete(random)
@@ -137,18 +154,12 @@ export class PlayerEventDelegate {
 
   invoke(eventId: EventType, value: any) {
     this._nativeEventListeners.forEach(l => l.onEvent(eventId, value))
-    if (this._handlers.has(eventId)) {
-      this._handlers.get(eventId)(value)
+    if (this._allHandlers.has(eventId)) {
+      this._allHandlers.get(eventId)(value)
     }
     if (this._listeners.has(eventId)) {
       this._listeners.get(eventId)(value)
     }
-  }
-
-  private matchMedia(that: chrome.cast.media.MediaInfo): boolean {
-    if (!this._currentInfo || !that)
-      return false
-    return this._currentInfo.contentId == that.contentId
   }
 
   @Bind
@@ -193,6 +204,8 @@ export class PlayerEventDelegate {
       this._castListeners.forEach(l => l.onMediaLoaded())
     } else {
       this._castListeners.forEach(l => l.onMediaUnloaded())
+      if (!this._queue.isNextItemUserSelected())
+        this._mediaCompleteListener()
     }
   }
 
@@ -202,12 +215,12 @@ export class PlayerEventDelegate {
   }
 
   @Bind
-  private onMediaInfoChanged(info: chrome.cast.media.MediaInfo) {
-    this._castListeners.forEach(l => l.onMediaInfoChanged(info))
-    if (!this.matchMedia(info) && !!this._currentInfo) {
-      this._playbackListeners.forEach(l => l.onEnded())
-      this._queueListeners.forEach(l => l.onItemChanged(Chromecast.currentQueueItem))
-      this._currentInfo = info
+  private async onMediaInfoChanged(info: chrome.cast.media.MediaInfo) {
+    if (!!info) {
+      this._castListeners.forEach(l => l.onMediaInfoChanged(info))
+      if (info.contentId != this._queue.current.contentId) {
+        this._playbackListeners.forEach(l => l.onEnded())
+      }
     }
   }
 
@@ -218,7 +231,7 @@ export class PlayerEventDelegate {
 
   @Bind
   private onVolumeLevel(volume: number) {
-    this._playbackListeners.forEach(l => l.onVolumeChanged(volume))
+    this._playbackListeners.forEach(l => l.onVolumeChange(volume))
   }
 
   @Bind

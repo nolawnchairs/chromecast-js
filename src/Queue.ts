@@ -1,4 +1,13 @@
 
+/**
+ * This class is not used until I can find a way to
+ * implement the Cast API's queuing mechanism that properly
+ * updates
+ */
+
+/**
+ * @deprecated
+ */
 export default class Queue {
 
   private _started: boolean = false

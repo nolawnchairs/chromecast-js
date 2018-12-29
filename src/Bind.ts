@@ -1,6 +1,6 @@
 function Bind<T extends Function>(target: object, propertyKey: string, descriptor: TypedPropertyDescriptor<T>): TypedPropertyDescriptor<T> | void {
   if (!descriptor || (typeof descriptor.value !== 'function')) {
-    throw new TypeError(`Only methods can be decorated with @bind. <${propertyKey}> is not a method!`)
+    throw new TypeError(`Only methods can be decorated with @Bind. <${propertyKey}> is not a method!`)
   }
 
   return {

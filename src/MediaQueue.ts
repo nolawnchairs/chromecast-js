@@ -6,10 +6,7 @@ export declare type QueueEventType = 'queueStart'
   | 'queueItem'
   | 'queueUpdate'
 
-enum ItemChangeActor {
-  Automatic,
-  User
-}
+enum ItemChangeActor { Automatic, User }
 
 export default class MediaQueue {
 
@@ -17,10 +14,6 @@ export default class MediaQueue {
   private _items: chrome.cast.media.MediaInfo[] = []
   private _currentItem: number = -1
   private _nextActor: ItemChangeActor = ItemChangeActor.Automatic
-
-  constructor() {
-    window['__queue'] = this
-  }
 
   /**
    * Whether or not the queue has been started

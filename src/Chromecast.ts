@@ -355,7 +355,6 @@ class ChromecastInstance {
    * @param event QueueEventType
    * @param value Value to send
    */
-  @Bind
   private emitQueueEvent(event: QueueEventType, value?: any) {
     this._eventDelegate.invoke(event as EventType, value)
   }

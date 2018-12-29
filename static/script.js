@@ -18,7 +18,7 @@ module.exports =  {
 Object.defineProperty(exports, "__esModule", { value: true });
 function Bind(target, propertyKey, descriptor) {
     if (!descriptor || (typeof descriptor.value !== 'function')) {
-        throw new TypeError("Only methods can be decorated with @bind. <" + propertyKey + "> is not a method!");
+        throw new TypeError("Only methods can be decorated with @Bind. <" + propertyKey + "> is not a method!");
     }
     return {
         configurable: true,
@@ -275,9 +275,6 @@ var ChromecastInstance = (function () {
     tslib_1.__decorate([
         Bind_1.default
     ], ChromecastInstance.prototype, "onPlayerEvent", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], ChromecastInstance.prototype, "emitQueueEvent", null);
     return ChromecastInstance;
 }());
 var Chromecast = new ChromecastInstance();
@@ -386,7 +383,6 @@ var MediaQueue = (function () {
         this._items = [];
         this._currentItem = -1;
         this._nextActor = ItemChangeActor.Automatic;
-        window['__queue'] = this;
     }
     Object.defineProperty(MediaQueue.prototype, "started", {
         get: function () {
@@ -1133,19 +1129,35 @@ function onReady() {
 
   Chromecast.setErrorListener(console.error)
   
-  hooks.push(Register.forPlaybackEvents({
-    onTimeUpdate(time) {},
-    onPaused() {},
-    onPlaying() {},
-    onBuffering() {},
-    onIdle() {},
-    onStop() {},
-    onMuteChange(muted) {},
-    onVolumeChanged(volume) {},
-    onEnded() {
-      
+  Register.forPlaybackEvents({
+    onTimeUpdate(time) {
+      console.log('timeUpdate', time)
     },
-  }))
+    onPaused() {
+      console.log('mediaPaused')
+    },
+    onPlaying() {
+      console.log('media playing')
+    },
+    onBuffering() {
+      console.log('media is buffering')
+    },
+    onIdle() {
+      console.log('player is idle')
+    },
+    onStop() {
+      console.log('playback stopeed')
+    },
+    onMuteChange(muted) {
+      console.log('muted?', muted)
+    },
+    onVolumeChanged(volume) {
+      console.log('volume')
+    },
+    onEnded() {
+      console.log('media ended')
+    },
+  })
   
 }
 

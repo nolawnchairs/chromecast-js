@@ -20,8 +20,6 @@
     "chromecast"
   ],
   "devDependencies": {
-    "@types/chrome": "^0.0.76",
-    "@types/chromecast-caf-sender": "^1.0.0",
     "@types/node": "^10.12.18",
     "express": "^4.16.4",
     "nodemon": "^1.18.9",
@@ -31,5 +29,8 @@
     "start": "nodemon",
     "dts": "dts-bundle-generator index.ts -o types.d.ts"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@types/chrome": "^0.0.76",
+    "@types/chromecast-caf-sender": "^1.0.0"
+  }
 }

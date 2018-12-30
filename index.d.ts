@@ -124,6 +124,7 @@ export declare class Chromecast {
   static appendToQueue(item: chrome.cast.media.MediaInfo): void;
   static removeFromQueue(item: number): void;
   static reorderQueue(from: number, to: number): void
+  static clearQueue(): void;
   static startQueue(): void;
   static startQueue(startTime: number): void;
   static playNext(): void;

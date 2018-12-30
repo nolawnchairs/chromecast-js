@@ -226,6 +226,16 @@ class ChromecastInstance {
   }
 
   /**
+   * Clears the play queue entirely
+   */
+  clearQueue() {
+    if (this._queue.started)
+      this._controller.stop()
+    this._queue.clear()
+    this.emitQueueEvent('queueUpdate', this._queue.items)
+  }
+
+  /**
    * Start the playback queue
    * @param startingTime optional starting time of first item. Defaults to 0
    */

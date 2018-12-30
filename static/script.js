@@ -615,6 +615,7 @@ var PlayerEventDelegate = (function () {
         }
     };
     PlayerEventDelegate.prototype.isConnected = function (is) {
+        console.log('is connected', is);
         if (is) {
             this._castListeners.forEach(function (l) { return l.onConnected(); });
         }
@@ -1071,7 +1072,6 @@ const options = {
   autoJoinPolicy: Chromecast.AutoJoinPolicy.ORIGIN_SCOPED
 }
 
-const hooks = []
 let pushIndex = 2
 
 registerClick('pp', () => Controller.togglePlay())
@@ -1088,6 +1088,49 @@ registerClick('remove', () => {
 })
 
 Chromecast.initializeCastService(options).catch(console.error)
+
+Register.forEvents({
+  onEvent(event, value) {
+    console.log(event, value)
+  }
+})
+
+Register.forCastEvents({
+  onConnected() {
+    console.log('cast connected')
+  },
+  onDisconnected() {
+    console.log('cast disconnected')
+  },
+  onMediaLoaded() {
+    console.log('media was loaded')
+  },
+  onMediaUnloaded() {
+    conseole.log('media was unloaded')
+  },
+  onMediaInfoChanged(info) {
+    console.log('media info changed', info)
+  },
+  onDurationChanged(duration) {
+    console.log('media duration changed: %d', duration)
+  },
+  onDisplayNameChanged(name) {
+    console.log('display name changed: %s', name)
+  },
+  onDisplayStatusChanged(displayStatus) {
+    console.log('display status changed: %s', displayStatus)
+  },
+  onStatusTextChanged(statusText) {
+    console.log('status text changed: %s', statusText)
+  },
+  onTitleChanged(title) {
+    console.log('title changed: %s', title)
+  },
+  onImageUrlChanged(url) {
+    console.log('image url changed: %s', url)
+  }
+})
+
 Chromecast.setReadyStateListner(() => onReady())
 
 function createEntity(movie) {
@@ -1101,7 +1144,6 @@ function registerClick(id, fn) {
 function disconnect() {
   Controller && Controller.stop()
   Chromecast.disconnect()
-  hooks.forEach(h => h())
 }
 
 function onReady() {
@@ -1115,49 +1157,47 @@ function onReady() {
   Chromecast.enqueueItems(videos)
   Chromecast.startQueue()
 
-  Chromecast.on('queueItem', i => console.log('queueItem changed to %d', i))
+  //Chromecast.on('queueItem', i => console.log('queueItem changed to %d', i))
   // Chromecast.on('queueRemove', i => console.log('queueRemove', i))
   // Chromecast.on('queueInsert', i => console.log('queueInsert', i))
   // Chromecast.on('currentTime', t => console.log('currentTime: %d',t))
-  Chromecast.on('isMediaLoaded', is => console.log('isMediaLoaded', is))
+  //Chromecast.on('isMediaLoaded', is => console.log('isMediaLoaded', is))
 
-  hooks.push(Register.forEvents({
-    onEvent(event, value) {
-      //console.log(event, value)
-    }
-  }))
+
 
   Chromecast.setErrorListener(console.error)
+
   
-  Register.forPlaybackEvents({
-    onTimeUpdate(time) {
-      console.log('timeUpdate', time)
-    },
-    onPaused() {
-      console.log('mediaPaused')
-    },
-    onPlaying() {
-      console.log('media playing')
-    },
-    onBuffering() {
-      console.log('media is buffering')
-    },
-    onIdle() {
-      console.log('player is idle')
-    },
-    onStop() {
-      console.log('playback stopeed')
-    },
-    onMuteChange(muted) {
-      console.log('muted?', muted)
-    },
-    onVolumeChanged(volume) {
-      console.log('volume')
-    },
-    onEnded() {
-      console.log('media ended')
-    },
-  })
+  
+  // Register.forPlaybackEvents({
+  //   onTimeUpdate(time) {
+  //     console.log('timeUpdate', time)
+  //   },
+  //   onPaused() {
+  //     console.log('mediaPaused')
+  //   },
+  //   onPlaying() {
+  //     console.log('media playing')
+  //   },
+  //   onBuffering() {
+  //     console.log('media is buffering')
+  //   },
+  //   onIdle() {
+  //     console.log('player is idle')
+  //   },
+  //   onStop() {
+  //     console.log('playback stopeed')
+  //   },
+  //   onMuteChange(muted) {
+  //     console.log('muted?', muted)
+  //   },
+  //   onVolumeChanged(volume) {
+  //     console.log('volume')
+  //   },
+  //   onEnded() {
+  //     console.log('media ended')
+  //   },
+  // })
   
 }
 

@@ -171,6 +171,12 @@ var ChromecastInstance = (function () {
         this._queue.reorderItem(from, to);
         this.emitQueueEvent('queueUpdate', this._queue.items);
     };
+    ChromecastInstance.prototype.clearQueue = function () {
+        if (this._queue.started)
+            this._controller.stop();
+        this._queue.clear();
+        this.emitQueueEvent('queueUpdate', this._queue.items);
+    };
     ChromecastInstance.prototype.startQueue = function (startingTime) {
         var _this = this;
         if (startingTime === void 0) { startingTime = 0; }
@@ -615,7 +621,6 @@ var PlayerEventDelegate = (function () {
         }
     };
     PlayerEventDelegate.prototype.isConnected = function (is) {
-        console.log('is connected', is);
         if (is) {
             this._castListeners.forEach(function (l) { return l.onConnected(); });
         }
@@ -1143,6 +1148,7 @@ function registerClick(id, fn) {
 
 function disconnect() {
   Controller && Controller.stop()
+  Chromecast.clearQueue()
   Chromecast.disconnect()
 }
 

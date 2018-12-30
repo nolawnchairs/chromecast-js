@@ -25,12 +25,12 @@
     "nodemon": "^1.18.9",
     "tslib": "^1.9.3"
   },
-  "scripts": {
-    "start": "nodemon",
-    "dts": "dts-bundle-generator index.ts -o types.d.ts"
-  },
   "dependencies": {
     "@types/chrome": "^0.0.76",
     "@types/chromecast-caf-sender": "^1.0.0"
+  },
+  "scripts": {
+    "start": "nodemon",
+    "dts": "dts-bundle-generator index.ts -o types.d.ts"
   }
 }

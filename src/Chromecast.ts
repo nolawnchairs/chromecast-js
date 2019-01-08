@@ -280,6 +280,7 @@ class ChromecastInstance {
     const item = this._queue.previous()
     if (item) {
       this.loadItem(item, true)
+      this.emitQueueEvent('queueItem', this._queue.currentItem)
     }
   }
 

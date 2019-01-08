@@ -1,6 +1,6 @@
 {
   "name": "@nolawnchairs/chromecast",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Chromecast Abstraction",
   "main": "index.js",
   "author": "Micheel Wieczorek",

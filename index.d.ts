@@ -1,77 +1,5 @@
 
 export declare type HandlerFn = (value: any) => void;
-export declare type UnregisterHook = () => void;
-export declare namespace Listeners {
-  interface PlaybackEvent {
-    /**
-     * Called when the remote player's time is updated
-     * @param time time position in seconds
-     */
-    onTimeUpdate(time: number): void;
-    /**
-     * Called when media playback is paused
-     */
-    onPaused(): void;
-    /**
-     * Called when media playback resumes
-     */
-    onPlaying(): void;
-    /**
-     * Called when media playback enters a buffering state
-     */
-    onBuffering(): void;
-    /**
-     * Called when media playback enters an idle state
-     */
-    onIdle(): void;
-    /**
-     * Called when media playback stops
-     */
-    onStop(): void;
-    /**
-     * Called when the remote player's volume mute state changes
-     * @param muted if state is muted
-     */
-    onMuteChange(muted: boolean): void;
-    /**
-     * Called when the remote player's volume level changes
-     * @param volume volume ratio, float between 0 and 1
-     */
-    onVolumeChange(volume: number): void;
-    /**
-     * Called when the current media entity finishes playback
-     */
-    onEnded(): void;
-  }
-  interface CastEvent {
-    onConnected(): void;
-    onDisconnected(): void;
-    onMediaLoaded(): void;
-    onMediaUnloaded(): void;
-    onMediaInfoChanged(info: chrome.cast.media.MediaInfo): void;
-    onDurationChanged(duration: number): void;
-    onDisplayNameChanged(name: string): void;
-    onDisplayStatusChanged(displayStatus: string): void;
-    onStatusTextChanged(statusText: string): void;
-    onTitleChanged(title: string): void;
-    onImageUrlChanged(url: string): void;
-  }
-  interface PlayerCapabilityEvent {
-    canChangeVolume(can: boolean): void;
-    canSeek(can: boolean): void;
-    canPause(can: boolean): void;
-  }
-  interface NativeEvent {
-    onEvent(eventType: string | EventType, value: any): void;
-  }
-  interface QueueEvent {
-    onStarted(): void
-    onStopped(): void
-    onUpdated(): void
-    onItemChanged(item: number): void
-  }
-}
-
 
 declare type AbstractMetaData = chrome.cast.media.GenericMediaMetadata | chrome.cast.media.MovieMediaMetadata | chrome.cast.media.MusicTrackMediaMetadata | chrome.cast.media.PhotoMediaMetadata
 declare class Media {
@@ -101,6 +29,7 @@ export declare class Chromecast {
   static initializeCastService(options?: Options): Promise<void>;
   static setReadyStateListner(listener: () => void): void;
   static setShutownStateListener(listener: () => void): void;
+  static setResumeStateListener(listener: () => void): ResumeState;
   static setErrorListener(listener: (e: chrome.cast.Error) => void): void;
   static readonly controller: cast.framework.RemotePlayerController;
   static readonly player: cast.framework.RemotePlayer;
@@ -113,7 +42,9 @@ export declare class Chromecast {
   };
   static disconnect(): void;
   static on(event: EventType, fn: HandlerFn): void;
+  static onAnyEvent(listener: (event: EventType, value: any) => void): void;
   static off(event: EventType): void;
+  static unregisterAll(): void;
   static getCurrentMedia(): chrome.cast.media.MediaInfo | null;
   static newMediaEntity(mediaId: string, mimeType: string): chrome.cast.media.MediaInfo;
   static newMediaEntity(mediaId: string, mimeType: string, title: string): chrome.cast.media.MediaInfo;
@@ -129,16 +60,9 @@ export declare class Chromecast {
   static startQueue(startTime: number): void;
   static playNext(): void;
   static playPrevious(): void;
+  static getCastDeviceName(): string
 }
 
-export declare class Register {
-  static forCastEvents(handler: Listeners.CastEvent): UnregisterHook;
-  static forPlaybackEvents(handler: Listeners.PlaybackEvent): UnregisterHook;
-  static forPlayerCapabilityEvents(handler: Listeners.PlayerCapabilityEvent): UnregisterHook;
-  static forQueueEvents(handler: Listeners.QueueEvent): UnregisterHook;
-  static forEvents(handler: Listeners.NativeEvent): UnregisterHook;
-  static unregisterAll(): void;
-}
 export declare class Controller {
   static togglePlay(): void;
   static toggleMute(): void;
@@ -150,6 +74,12 @@ export declare class Controller {
   static adjustVolume(volume: number): void;
   static rewind(): void;
 }
+
+export declare interface ResumeState {
+  items: chrome.cast.media.MediaInfo[]
+  currentItem: number
+}
+
 
 export type EventType = 'isConnected' | 'isMediaLoaded' | 'duration'
   | 'currentTime' | 'isPaused' | 'volumeLevel' | 'canControlVolume'

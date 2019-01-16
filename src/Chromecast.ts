@@ -1,7 +1,7 @@
 import Bind from './Bind'
 import { PlayerEventDelegate, EventType, HandlerFn } from './PlayerEvent'
 import Media, { AbstractMetaData } from './Media'
-import MediaQueue, { QueueEventType } from './MediaQueue'
+import MediaQueue, { QueueEventType, ResumeState } from './MediaQueue'
 import { CastOptions, Options } from './Options'
 
 const onAvailableCallbackId = '__onGCastApiAvailable'
@@ -16,9 +16,10 @@ class ChromecastInstance {
   private _controller: cast.framework.RemotePlayerController
   private _eventDelegate: PlayerEventDelegate
   private _queue: MediaQueue
-  private _readyStateListener: () => void = () => { }
-  private _shutdownStateListener: () => void = () => { }
-  private _errorListener: (e: chrome.cast.Error) => void = () => { }
+  private _readyStateListener: () => void
+  private _resumedStateListener: () => ResumeState
+  private _shutdownStateListener: () => void
+  private _errorListener: (e: chrome.cast.Error) => void
 
   //#region main
   readonly AutoJoinPolicy = {
@@ -116,6 +117,14 @@ class ChromecastInstance {
   }
 
   /**
+   * Sets the listender to be invoked when the media session resumes
+   * @param listener Listener to be invoked
+   */
+  setResumeStateListener(listener: () => ResumeState) {
+    this._resumedStateListener = listener
+  }
+
+  /**
    * Set the listener to be invoked when an error occurs
    * @param listener Listener to be invoked
    */
@@ -149,6 +158,21 @@ class ChromecastInstance {
    */
   off(event: EventType) {
     this._eventDelegate.removeListener(event)
+  }
+
+  /**
+   * Register a listener for all cast-related events
+   * @param listener listener for all events
+   */
+  onAnyEvent(listener: (event: EventType, value: any) => void) {
+    this._eventDelegate.setAnyEventListener(listener)
+  }
+
+  /**
+   * Unregister all event handlers
+   */
+  unregisterAll() {
+    this._eventDelegate.removeAll()
   }
 
   /**
@@ -285,6 +309,13 @@ class ChromecastInstance {
   }
 
   /**
+   * Get the cast device name
+   */
+  getCastDeviceName(): string {
+    return this._castSession.getCastDevice().friendlyName
+  }
+
+  /**
    * Create the controller for the currently playing media item
    */
   private createController() {
@@ -323,13 +354,21 @@ class ChromecastInstance {
   private onSessionStateChange(event: cast.framework.SessionStateEventData) {
     switch (event.sessionState) {
       case cast.framework.SessionState.SESSION_ENDED:
-        this._shutdownStateListener()
+        this._shutdownStateListener && this._shutdownStateListener()
         break
       case cast.framework.SessionState.SESSION_STARTED:
+        this._castSession = this._context.getCurrentSession()
+        this._player = new cast.framework.RemotePlayer()
+        this._readyStateListener && this._readyStateListener()
+        break
       case cast.framework.SessionState.SESSION_RESUMED:
         this._castSession = this._context.getCurrentSession()
         this._player = new cast.framework.RemotePlayer()
-        this._readyStateListener()
+        this.createController()
+        if (this._resumedStateListener) {
+          const state = this._resumedStateListener()
+          this._queue.resume(state)
+        }
         break
     }
   }
@@ -348,7 +387,8 @@ class ChromecastInstance {
    */
   @Bind
   private onMediaLoadError(errorCode: chrome.cast.ErrorCode) {
-    this._errorListener(new chrome.cast.Error(errorCode))
+    if (this._errorListener)
+      this._errorListener(new chrome.cast.Error(errorCode))
   }
 
   /**

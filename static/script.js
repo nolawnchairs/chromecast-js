@@ -48,9 +48,6 @@ var onAvailableCallbackId = '__onGCastApiAvailable';
 var ChromecastInstance = (function () {
     function ChromecastInstance() {
         this._ready = false;
-        this._readyStateListener = function () { };
-        this._shutdownStateListener = function () { };
-        this._errorListener = function () { };
         this.AutoJoinPolicy = {
             CUSTOM_CONTROLLER_SCOPED: 'custom_controller_scoped',
             TAB_AND_ORIGIN_SCOPED: 'tab_and_origin_scoped',
@@ -122,6 +119,9 @@ var ChromecastInstance = (function () {
     ChromecastInstance.prototype.setShutownStateListener = function (listener) {
         this._shutdownStateListener = listener;
     };
+    ChromecastInstance.prototype.setResumeStateListener = function (listener) {
+        this._resumedStateListener = listener;
+    };
     ChromecastInstance.prototype.setErrorListener = function (listener) {
         this._errorListener = listener;
     };
@@ -136,6 +136,12 @@ var ChromecastInstance = (function () {
     };
     ChromecastInstance.prototype.off = function (event) {
         this._eventDelegate.removeListener(event);
+    };
+    ChromecastInstance.prototype.onAnyEvent = function (listener) {
+        this._eventDelegate.setAnyEventListener(listener);
+    };
+    ChromecastInstance.prototype.unregisterAll = function () {
+        this._eventDelegate.removeAll();
     };
     ChromecastInstance.prototype.newMediaEntity = function (mediaId, mimeType, title, image, meta) {
         return Media_1.default.newEntity(mediaId, mimeType, title, image, meta);
@@ -208,7 +214,11 @@ var ChromecastInstance = (function () {
         var item = this._queue.previous();
         if (item) {
             this.loadItem(item, true);
+            this.emitQueueEvent('queueItem', this._queue.currentItem);
         }
+    };
+    ChromecastInstance.prototype.getCastDeviceName = function () {
+        return this._castSession.getCastDevice().friendlyName;
     };
     ChromecastInstance.prototype.createController = function () {
         this.removeListeners();
@@ -243,13 +253,21 @@ var ChromecastInstance = (function () {
     ChromecastInstance.prototype.onSessionStateChange = function (event) {
         switch (event.sessionState) {
             case cast.framework.SessionState.SESSION_ENDED:
-                this._shutdownStateListener();
+                this._shutdownStateListener && this._shutdownStateListener();
                 break;
             case cast.framework.SessionState.SESSION_STARTED:
+                this._castSession = this._context.getCurrentSession();
+                this._player = new cast.framework.RemotePlayer();
+                this._readyStateListener && this._readyStateListener();
+                break;
             case cast.framework.SessionState.SESSION_RESUMED:
                 this._castSession = this._context.getCurrentSession();
                 this._player = new cast.framework.RemotePlayer();
-                this._readyStateListener();
+                this.createController();
+                if (this._resumedStateListener) {
+                    var state = this._resumedStateListener();
+                    this._queue.resume(state);
+                }
                 break;
         }
     };
@@ -257,7 +275,8 @@ var ChromecastInstance = (function () {
         this.playNext();
     };
     ChromecastInstance.prototype.onMediaLoadError = function (errorCode) {
-        this._errorListener(new chrome.cast.Error(errorCode));
+        if (this._errorListener)
+            this._errorListener(new chrome.cast.Error(errorCode));
     };
     ChromecastInstance.prototype.onPlayerEvent = function (event) {
         this._eventDelegate.invoke(event.field, event.value);
@@ -429,6 +448,11 @@ var MediaQueue = (function () {
         this._started = true;
         this._currentItem = 0;
     };
+    MediaQueue.prototype.resume = function (state) {
+        this._items = state.items;
+        this._currentItem = state.currentItem;
+        this._started = true;
+    };
     MediaQueue.prototype.isNextItemUserSelected = function () {
         return this._nextActor == ItemChangeActor.User;
     };
@@ -529,29 +553,10 @@ var Bind_1 = tslib_1.__importDefault(require("./Bind"));
 var PlayerEventDelegate = (function () {
     function PlayerEventDelegate(queue) {
         this._listeners = new Map();
-        this._allHandlers = new Map();
-        this._playbackListeners = new Map();
-        this._castListeners = new Map();
-        this._playerCapabilityListeners = new Map();
+        this._allHandlers = null;
         this._queueListeners = new Map();
-        this._nativeEventListeners = new Map();
         this._queue = queue;
-        this.bind('isConnected', this.isConnected);
         this.bind('isMediaLoaded', this.isMediaLoaded);
-        this.bind('duration', this.onDurationChanged);
-        this.bind('currentTime', this.onTimeChange);
-        this.bind('isPaused', this.onPaused);
-        this.bind('volumeLevel', this.onVolumeLevel);
-        this.bind('canControlVolume', this.canControlVolume);
-        this.bind('isMuted', this.onMuteChange);
-        this.bind('canPause', this.canPause);
-        this.bind('canSeek', this.canSeek);
-        this.bind('displayName', this.onDisplayNameChanged);
-        this.bind('statusText', this.onStatusTextChange);
-        this.bind('title', this.onTitleChange);
-        this.bind('displayStatus', this.onDisplayStatusChange);
-        this.bind('imageUrl', this.onImageUrlChange);
-        this.bind('mediaInfo', this.onMediaInfoChanged);
         this.bind('playerState', this.onPlayerState);
         this.bind('queueStart', this.onQueueStart);
         this.bind('queueComplete', this.onQueueStopped);
@@ -561,16 +566,12 @@ var PlayerEventDelegate = (function () {
         this.bind('queueItem', this.onQueueItemChanged);
     }
     PlayerEventDelegate.prototype.bind = function (id, handler) {
-        this._allHandlers.set(id, handler);
+        this._listeners.set(id, handler);
     };
     PlayerEventDelegate.prototype.removeAll = function () {
         this._listeners.clear();
-        this._playbackListeners.clear();
-        this._castListeners.clear();
-        this._playerCapabilityListeners.clear();
         this._queueListeners.clear();
-        this._nativeEventListeners.clear();
-        this._allHandlers.clear();
+        this._allHandlers = null;
     };
     PlayerEventDelegate.prototype.addListener = function (event, handler) {
         this._listeners.set(event, handler);
@@ -581,136 +582,26 @@ var PlayerEventDelegate = (function () {
     PlayerEventDelegate.prototype.setMediaCompleteListener = function (listener) {
         this._mediaCompleteListener = listener;
     };
-    PlayerEventDelegate.prototype.registerPlaybackEventListener = function (listener) {
-        var _this = this;
-        var random = Math.random();
-        this._playbackListeners.set(random, listener);
-        return function () { return _this._playbackListeners.delete(random); };
-    };
-    PlayerEventDelegate.prototype.registerCastEventListener = function (listener) {
-        var _this = this;
-        var random = Math.random();
-        this._castListeners.set(random, listener);
-        return function () { return _this._castListeners.delete(random); };
-    };
-    PlayerEventDelegate.prototype.registerPlayerCapabilityListener = function (listener) {
-        var _this = this;
-        var random = Math.random();
-        this._playerCapabilityListeners.set(random, listener);
-        return function () { return _this._playerCapabilityListeners.delete(random); };
-    };
-    PlayerEventDelegate.prototype.registerQueueEventListener = function (listener) {
-        var _this = this;
-        var random = Math.random();
-        this._queueListeners.set(random, listener);
-        return function () { return _this._queueListeners.delete(random); };
-    };
-    PlayerEventDelegate.prototype.registerNativeEventListener = function (listener) {
-        var _this = this;
-        var random = Math.random();
-        this._nativeEventListeners.set(random, listener);
-        return function () { return _this._nativeEventListeners.delete(random); };
+    PlayerEventDelegate.prototype.setAnyEventListener = function (listener) {
+        this._allHandlers = listener;
     };
     PlayerEventDelegate.prototype.invoke = function (eventId, value) {
-        this._nativeEventListeners.forEach(function (l) { return l.onEvent(eventId, value); });
-        if (this._allHandlers.has(eventId)) {
-            this._allHandlers.get(eventId)(value);
+        if (this._allHandlers) {
+            this._allHandlers(eventId, value);
         }
         if (this._listeners.has(eventId)) {
             this._listeners.get(eventId)(value);
         }
     };
-    PlayerEventDelegate.prototype.isConnected = function (is) {
-        if (is) {
-            this._castListeners.forEach(function (l) { return l.onConnected(); });
-        }
-        else {
-            this._castListeners.forEach(function (l) { return l.onDisconnected(); });
-        }
-    };
-    PlayerEventDelegate.prototype.onTimeChange = function (time) {
-        this._playbackListeners.forEach(function (l) { return l.onTimeUpdate(time); });
-    };
     PlayerEventDelegate.prototype.onPlayerState = function (state) {
         if (state == null) {
             this._queueListeners.forEach(function (l) { return l.onStopped(); });
-            return;
-        }
-        switch (state) {
-            case 'IDLE':
-                this._playbackListeners.forEach(function (l) { return l.onIdle(); });
-                break;
-            case 'PLAYING':
-                this._playbackListeners.forEach(function (l) { return l.onPlaying(); });
-                break;
-            case 'PAUSED':
-                this._playbackListeners.forEach(function (l) { return l.onPaused(); });
-                break;
-            case 'BUFFERING':
-                this._playbackListeners.forEach(function (l) { return l.onBuffering(); });
-                break;
         }
     };
     PlayerEventDelegate.prototype.isMediaLoaded = function (is) {
-        if (is) {
-            this._castListeners.forEach(function (l) { return l.onMediaLoaded(); });
+        if (!is && !this._queue.isNextItemUserSelected()) {
+            this._mediaCompleteListener();
         }
-        else {
-            this._castListeners.forEach(function (l) { return l.onMediaUnloaded(); });
-            if (!this._queue.isNextItemUserSelected())
-                this._mediaCompleteListener();
-        }
-    };
-    PlayerEventDelegate.prototype.onDurationChanged = function (duration) {
-        this._castListeners.forEach(function (l) { return l.onDurationChanged(duration); });
-    };
-    PlayerEventDelegate.prototype.onMediaInfoChanged = function (info) {
-        return tslib_1.__awaiter(this, void 0, void 0, function () {
-            return tslib_1.__generator(this, function (_a) {
-                if (!!info) {
-                    this._castListeners.forEach(function (l) { return l.onMediaInfoChanged(info); });
-                    if (info.contentId != this._queue.current.contentId) {
-                        this._playbackListeners.forEach(function (l) { return l.onEnded(); });
-                    }
-                }
-                return [2];
-            });
-        });
-    };
-    PlayerEventDelegate.prototype.onMuteChange = function (is) {
-        this._playbackListeners.forEach(function (l) { return l.onMuteChange(is); });
-    };
-    PlayerEventDelegate.prototype.onVolumeLevel = function (volume) {
-        this._playbackListeners.forEach(function (l) { return l.onVolumeChange(volume); });
-    };
-    PlayerEventDelegate.prototype.onPaused = function (paused) {
-        if (paused) {
-            this._playbackListeners.forEach(function (l) { return l.onPaused(); });
-        }
-    };
-    PlayerEventDelegate.prototype.onDisplayNameChanged = function (name) {
-        this._castListeners.forEach(function (l) { return l.onDisplayNameChanged(name); });
-    };
-    PlayerEventDelegate.prototype.onStatusTextChange = function (text) {
-        this._castListeners.forEach(function (l) { return l.onStatusTextChanged(text); });
-    };
-    PlayerEventDelegate.prototype.onTitleChange = function (title) {
-        this._castListeners.forEach(function (l) { return l.onTitleChanged(title); });
-    };
-    PlayerEventDelegate.prototype.onDisplayStatusChange = function (status) {
-        this._castListeners.forEach(function (l) { return l.onDisplayStatusChanged(status); });
-    };
-    PlayerEventDelegate.prototype.onImageUrlChange = function (url) {
-        this._castListeners.forEach(function (l) { return l.onImageUrlChanged(url); });
-    };
-    PlayerEventDelegate.prototype.canControlVolume = function (can) {
-        this._playerCapabilityListeners.forEach(function (l) { return l.canChangeVolume(can); });
-    };
-    PlayerEventDelegate.prototype.canPause = function (can) {
-        this._playerCapabilityListeners.forEach(function (l) { return l.canPause(can); });
-    };
-    PlayerEventDelegate.prototype.canSeek = function (can) {
-        this._playerCapabilityListeners.forEach(function (l) { return l.canSeek(can); });
     };
     PlayerEventDelegate.prototype.onQueueStart = function () {
         this._queueListeners.forEach(function (l) { return l.onStarted(); });
@@ -726,55 +617,10 @@ var PlayerEventDelegate = (function () {
     };
     tslib_1.__decorate([
         Bind_1.default
-    ], PlayerEventDelegate.prototype, "isConnected", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onTimeChange", null);
-    tslib_1.__decorate([
-        Bind_1.default
     ], PlayerEventDelegate.prototype, "onPlayerState", null);
     tslib_1.__decorate([
         Bind_1.default
     ], PlayerEventDelegate.prototype, "isMediaLoaded", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onDurationChanged", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onMediaInfoChanged", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onMuteChange", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onVolumeLevel", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onPaused", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onDisplayNameChanged", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onStatusTextChange", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onTitleChange", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onDisplayStatusChange", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "onImageUrlChange", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "canControlVolume", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "canPause", null);
-    tslib_1.__decorate([
-        Bind_1.default
-    ], PlayerEventDelegate.prototype, "canSeek", null);
     tslib_1.__decorate([
         Bind_1.default
     ], PlayerEventDelegate.prototype, "onQueueStart", null);
@@ -799,21 +645,6 @@ var Chromecast_1 = tslib_1.__importDefault(require("./Chromecast"));
 var Register = (function () {
     function Register() {
     }
-    Register.forCastEvents = function (handler) {
-        return Chromecast_1.default.eventDelegate.registerCastEventListener(handler);
-    };
-    Register.forPlaybackEvents = function (handler) {
-        return Chromecast_1.default.eventDelegate.registerPlaybackEventListener(handler);
-    };
-    Register.forPlayerCapabilityEvents = function (handler) {
-        return Chromecast_1.default.eventDelegate.registerPlayerCapabilityListener(handler);
-    };
-    Register.forQueueEvents = function (handler) {
-        return Chromecast_1.default.eventDelegate.registerQueueEventListener(handler);
-    };
-    Register.forEvents = function (handler) {
-        return Chromecast_1.default.eventDelegate.registerNativeEventListener(handler);
-    };
     Register.unregisterAll = function () {
         Chromecast_1.default.eventDelegate.removeAll();
     };
@@ -1078,6 +909,8 @@ const options = {
 }
 
 let pushIndex = 2
+let item = 0
+const videos = []
 
 registerClick('pp', () => Controller.togglePlay())
 registerClick('stop', () => disconnect())
@@ -1093,50 +926,10 @@ registerClick('remove', () => {
 })
 
 Chromecast.initializeCastService(options).catch(console.error)
-
-Register.forEvents({
-  onEvent(event, value) {
-    console.log(event, value)
-  }
-})
-
-Register.forCastEvents({
-  onConnected() {
-    console.log('cast connected')
-  },
-  onDisconnected() {
-    console.log('cast disconnected')
-  },
-  onMediaLoaded() {
-    console.log('media was loaded')
-  },
-  onMediaUnloaded() {
-    conseole.log('media was unloaded')
-  },
-  onMediaInfoChanged(info) {
-    console.log('media info changed', info)
-  },
-  onDurationChanged(duration) {
-    console.log('media duration changed: %d', duration)
-  },
-  onDisplayNameChanged(name) {
-    console.log('display name changed: %s', name)
-  },
-  onDisplayStatusChanged(displayStatus) {
-    console.log('display status changed: %s', displayStatus)
-  },
-  onStatusTextChanged(statusText) {
-    console.log('status text changed: %s', statusText)
-  },
-  onTitleChanged(title) {
-    console.log('title changed: %s', title)
-  },
-  onImageUrlChanged(url) {
-    console.log('image url changed: %s', url)
-  }
-})
-
-Chromecast.setReadyStateListner(() => onReady())
+Chromecast.onAnyEvent(console.log)
+Chromecast.setReadyStateListner(onReady)
+Chromecast.setResumeStateListener(onResume)
+Chromecast.setErrorListener(console.error)
 
 function createEntity(movie) {
   return Chromecast.newMediaEntity(movie.url, 'video/mp4', movie.title, movie.image)
@@ -1152,58 +945,36 @@ function disconnect() {
   Chromecast.disconnect()
 }
 
-function onReady() {
-
-  const videos = []
+function makeTempQ() {
   videos.push(createEntity(movies[0]))
   videos.push(createEntity(movies[1]))
+}
 
+function onResume() {
+  makeTempQ()
+  return {
+    items: videos,
+    currentItem: item
+  }
+}
+
+function onReady() {
+  makeTempQ()
   console.log(videos.length + ' in queue', videos)
+  console.log(Chromecast.getCastDeviceName())
 
   Chromecast.enqueueItems(videos)
   Chromecast.startQueue()
 
-  //Chromecast.on('queueItem', i => console.log('queueItem changed to %d', i))
+  Chromecast.on('queueItem', i => {
+    item = i
+    console.log('queueItem changed to %d', i)
+  })
   // Chromecast.on('queueRemove', i => console.log('queueRemove', i))
   // Chromecast.on('queueInsert', i => console.log('queueInsert', i))
   // Chromecast.on('currentTime', t => console.log('currentTime: %d',t))
   //Chromecast.on('isMediaLoaded', is => console.log('isMediaLoaded', is))
 
-
-
-  Chromecast.setErrorListener(console.error)
-
-  
-  
-  // Register.forPlaybackEvents({
-  //   onTimeUpdate(time) {
-  //     console.log('timeUpdate', time)
-  //   },
-  //   onPaused() {
-  //     console.log('mediaPaused')
-  //   },
-  //   onPlaying() {
-  //     console.log('media playing')
-  //   },
-  //   onBuffering() {
-  //     console.log('media is buffering')
-  //   },
-  //   onIdle() {
-  //     console.log('player is idle')
-  //   },
-  //   onStop() {
-  //     console.log('playback stopeed')
-  //   },
-  //   onMuteChange(muted) {
-  //     console.log('muted?', muted)
-  //   },
-  //   onVolumeChanged(volume) {
-  //     console.log('volume')
-  //   },
-  //   onEnded() {
-  //     console.log('media ended')
-  //   },
-  // })
   
 }
 

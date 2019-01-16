@@ -8,6 +8,11 @@ export declare type QueueEventType = 'queueStart'
 
 enum ItemChangeActor { Automatic, User }
 
+export interface ResumeState {
+  items: chrome.cast.media.MediaInfo[]
+  currentItem: number
+}
+
 export default class MediaQueue {
 
   private _started: boolean = false
@@ -56,6 +61,12 @@ export default class MediaQueue {
   start() {
     this._started = true
     this._currentItem = 0
+  }
+
+  resume(state: ResumeState) {
+    this._items = state.items
+    this._currentItem = state.currentItem
+    this._started = true
   }
 
   /**

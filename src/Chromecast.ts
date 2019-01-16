@@ -361,7 +361,6 @@ class ChromecastInstance {
    */
   @Bind
   private onSessionStateChange(event: cast.framework.SessionStateEventData) {
-    console.log(event.sessionState)
     switch (event.sessionState) {
       case cast.framework.SessionState.SESSION_STARTING:
         this._startingStateListener && this._startingStateListener()

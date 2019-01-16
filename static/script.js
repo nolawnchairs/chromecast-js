@@ -2,18 +2,16 @@
 "use strict";
 
 var cc = require('./lib/Chromecast')
-var re = require('./lib/Registrar')
 var co = require('./lib/Controller')
 
 module.exports =  {
   Chromecast: cc.default,
   CastOptions: cc.CastOptions,
-  Register: re.default,
   Controller: co.default
 }
 
 
-},{"./lib/Chromecast":3,"./lib/Controller":4,"./lib/Registrar":9}],2:[function(require,module,exports){
+},{"./lib/Chromecast":3,"./lib/Controller":4}],2:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 function Bind(target, propertyKey, descriptor) {
@@ -113,6 +111,9 @@ var ChromecastInstance = (function () {
         enumerable: true,
         configurable: true
     });
+    ChromecastInstance.prototype.setStartingStateListener = function (listener) {
+        this._startingStateListener = listener;
+    };
     ChromecastInstance.prototype.setReadyStateListner = function (listener) {
         this._readyStateListener = listener;
     };
@@ -251,7 +252,11 @@ var ChromecastInstance = (function () {
         });
     };
     ChromecastInstance.prototype.onSessionStateChange = function (event) {
+        console.log(event.sessionState);
         switch (event.sessionState) {
+            case cast.framework.SessionState.SESSION_STARTING:
+                this._startingStateListener && this._startingStateListener();
+                break;
             case cast.framework.SessionState.SESSION_ENDED:
                 this._shutdownStateListener && this._shutdownStateListener();
                 break;
@@ -267,6 +272,11 @@ var ChromecastInstance = (function () {
                 if (this._resumedStateListener) {
                     var state = this._resumedStateListener();
                     this._queue.resume(state);
+                }
+                break;
+            case cast.framework.SessionState.SESSION_START_FAILED:
+                if (this._errorListener) {
+                    this._errorListener(new chrome.cast.Error(chrome.cast.ErrorCode.RECEIVER_UNAVAILABLE, 'Cast service could not connect'));
                 }
                 break;
         }
@@ -305,7 +315,7 @@ var ChromecastInstance = (function () {
 var Chromecast = new ChromecastInstance();
 exports.default = Chromecast;
 
-},{"./Bind":2,"./Media":5,"./MediaQueue":6,"./Options":7,"./PlayerEvent":8,"tslib":10}],4:[function(require,module,exports){
+},{"./Bind":2,"./Media":5,"./MediaQueue":6,"./Options":7,"./PlayerEvent":8,"tslib":9}],4:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
@@ -357,7 +367,7 @@ var MediaControllerInstance = (function () {
 var Controller = new MediaControllerInstance();
 exports.default = Controller;
 
-},{"./Chromecast":3,"tslib":10}],5:[function(require,module,exports){
+},{"./Chromecast":3,"tslib":9}],5:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var MediaImpl = (function () {
@@ -545,7 +555,7 @@ var CastOptions = (function () {
 }());
 exports.CastOptions = CastOptions;
 
-},{"tslib":10}],8:[function(require,module,exports){
+},{"tslib":9}],8:[function(require,module,exports){
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 var tslib_1 = require("tslib");
@@ -637,22 +647,7 @@ var PlayerEventDelegate = (function () {
 }());
 exports.PlayerEventDelegate = PlayerEventDelegate;
 
-},{"./Bind":2,"tslib":10}],9:[function(require,module,exports){
-"use strict";
-Object.defineProperty(exports, "__esModule", { value: true });
-var tslib_1 = require("tslib");
-var Chromecast_1 = tslib_1.__importDefault(require("./Chromecast"));
-var Register = (function () {
-    function Register() {
-    }
-    Register.unregisterAll = function () {
-        Chromecast_1.default.eventDelegate.removeAll();
-    };
-    return Register;
-}());
-exports.default = Register;
-
-},{"./Chromecast":3,"tslib":10}],10:[function(require,module,exports){
+},{"./Bind":2,"tslib":9}],9:[function(require,module,exports){
 (function (global){
 /*! *****************************************************************************
 Copyright (c) Microsoft Corporation. All rights reserved.
@@ -899,7 +894,7 @@ var __importDefault;
 });
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],11:[function(require,module,exports){
+},{}],10:[function(require,module,exports){
 const movies = require('./movies.json')
 const { Chromecast, Register, Controller } = require('..')
 
@@ -981,7 +976,7 @@ function onReady() {
 
 
 
-},{"..":1,"./movies.json":12}],12:[function(require,module,exports){
+},{"..":1,"./movies.json":11}],11:[function(require,module,exports){
 module.exports=[
   {
     "url": "http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
@@ -1019,4 +1014,4 @@ module.exports=[
     "image": "https://static.edyoutoo.media/posters/7CF657CC6C319470/P-7CF657CC6C319470-540.png"
   }
 ]
-},{}]},{},[11]);
+},{}]},{},[10]);

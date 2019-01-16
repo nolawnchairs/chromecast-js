@@ -16,6 +16,7 @@ class ChromecastInstance {
   private _controller: cast.framework.RemotePlayerController
   private _eventDelegate: PlayerEventDelegate
   private _queue: MediaQueue
+  private _startingStateListener: () => void
   private _readyStateListener: () => void
   private _resumedStateListener: () => ResumeState
   private _shutdownStateListener: () => void
@@ -100,6 +101,14 @@ class ChromecastInstance {
   }
 
   /**
+   * Sets the listener for when service connection is starting
+   * @param listener Listener to be invoked
+   */
+  setStartingStateListener(listener: () => void) {
+    this._startingStateListener = listener
+  }
+
+  /**
    * Set the listener to be invoked when the framework is loaded
    * and ready for media input
    * @param listener Listener to be invoked
@@ -117,7 +126,7 @@ class ChromecastInstance {
   }
 
   /**
-   * Sets the listender to be invoked when the media session resumes
+   * Sets the listener to be invoked when the media session resumes
    * @param listener Listener to be invoked
    */
   setResumeStateListener(listener: () => ResumeState) {
@@ -352,7 +361,11 @@ class ChromecastInstance {
    */
   @Bind
   private onSessionStateChange(event: cast.framework.SessionStateEventData) {
+    console.log(event.sessionState)
     switch (event.sessionState) {
+      case cast.framework.SessionState.SESSION_STARTING:
+        this._startingStateListener && this._startingStateListener()
+        break
       case cast.framework.SessionState.SESSION_ENDED:
         this._shutdownStateListener && this._shutdownStateListener()
         break
@@ -368,6 +381,12 @@ class ChromecastInstance {
         if (this._resumedStateListener) {
           const state = this._resumedStateListener()
           this._queue.resume(state)
+        }
+        break
+      case cast.framework.SessionState.SESSION_START_FAILED:
+        if (this._errorListener) {
+          this._errorListener(new chrome.cast.Error(
+            chrome.cast.ErrorCode.RECEIVER_UNAVAILABLE, 'Cast service could not connect'))
         }
         break
     }

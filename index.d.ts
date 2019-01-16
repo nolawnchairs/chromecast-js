@@ -27,6 +27,7 @@ export declare class Chromecast {
    */
   static isReady(): boolean;
   static initializeCastService(options?: Options): Promise<void>;
+  static setStartingStateListener(listener: () => void): void;
   static setReadyStateListner(listener: () => void): void;
   static setShutownStateListener(listener: () => void): void;
   static setResumeStateListener(listener: () => void): ResumeState;

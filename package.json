@@ -31,6 +31,7 @@
   },
   "scripts": {
     "start": "nodemon",
-    "dts": "dts-bundle-generator index.ts -o types.d.ts"
+    "dts": "dts-bundle-generator index.ts -o types.d.ts",
+    "publish": "npm publish --access public"
   }
 }

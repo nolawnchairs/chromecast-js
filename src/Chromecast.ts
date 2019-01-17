@@ -379,7 +379,9 @@ class ChromecastInstance {
         this.createController()
         if (this._resumedStateListener) {
           const state = this._resumedStateListener()
-          this._queue.resume(state)
+          if (state.items.length > 0) {
+            this._queue.resume(state)
+          }
         }
         break
       case cast.framework.SessionState.SESSION_START_FAILED:

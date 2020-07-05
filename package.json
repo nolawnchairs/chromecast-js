@@ -20,14 +20,12 @@
     "chromecast"
   ],
   "devDependencies": {
+    "@types/chrome": "^0.0.76",
+    "@types/chromecast-caf-sender": "^1.0.0",
     "@types/node": "^10.12.18",
     "express": "^4.16.4",
     "nodemon": "^1.18.9",
-    "tslib": "^1.9.3"
-  },
-  "dependencies": {
-    "@types/chrome": "^0.0.76",
-    "@types/chromecast-caf-sender": "^1.0.0"
+    "tslib": "^1.13.0"
   },
   "scripts": {
     "start": "nodemon",

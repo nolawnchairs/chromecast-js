@@ -1,6 +1,96 @@
 
 export declare type HandlerFn = (value: any) => void;
 
+declare namespace cast {
+  export namespace framework {
+    export interface CastOptions {
+      autoJoinPolicy: chrome.cast.AutoJoinPolicy;
+      language?: string;
+      receiverApplicationId?: string;
+      resumeSavedSession?: boolean;
+    }
+    export class RemotePlayerController {
+      constructor(player: RemotePlayer);
+      playOrPause(): void;
+      stop(): void;
+      seek(): void;
+      muteOrUnmute(): void;
+      setVolumeLevel(): void;
+      getFormattedTime(timeInSec: number): string;
+      getSeekPosition(currentTime: number, duration: number): number;
+      getSeekTime(currentPosition: number, duration: number): number;
+
+      addEventListener(
+        type: RemotePlayerEventType,
+        handler: (event: RemotePlayerChangedEvent) => void
+      ): void;
+      removeEventListener(
+        type: RemotePlayerEventType,
+        handler: (event: RemotePlayerChangedEvent) => void
+      ): void;
+    }
+    export interface RemotePlayer {
+      isConnected: boolean;
+      isMediaLoaded: boolean;
+      duration: number;
+      currentTime: number;
+      volumeLevel: number;
+      canControlVolume: boolean;
+      isPaused: boolean;
+      isMuted: boolean;
+      canPause: boolean;
+      canSeek: boolean;
+      displayName: string;
+      statusText: string;
+      title: string;
+      displayStatus: string;
+      mediaInfo?: chrome.cast.media.MediaInfo;
+      imageUrl: string | null;
+      playerState: chrome.cast.media.PlayerState | null;
+      savedPlayerState: SavedPlayerState | null;
+      controller: RemotePlayerController | null;
+    }
+    export interface CastSession {
+
+    }
+    interface SavedPlayerState {
+      mediaInfo: chrome.cast.media.PlayerState | null;
+      currentTime: number;
+      isPaused: boolean;
+    }
+    class RemotePlayerChangedEvent<T = any> extends EventData {
+      constructor(type: RemotePlayerEventType, field: string, value: T);
+      field: string;
+      value: T;
+    }
+    abstract class EventData {
+      constructor(type: string);
+      type: string;
+    }
+    enum RemotePlayerEventType {
+      ANY_CHANGE = "anyChanged",
+      IS_CONNECTED_CHANGED = "isConnectedChanged",
+      IS_MEDIA_LOADED_CHANGED = "isMediaLoadedChanged",
+      DURATION_CHANGED = "durationChanged",
+      CURRENT_TIME_CHANGED = "currentTimeChanged",
+      IS_PAUSED_CHANGED = "isPausedChanged",
+      VOLUME_LEVEL_CHANGED = "volumeLevelChanged",
+      CAN_CONTROL_VOLUME_CHANGED = "canControlVolumeChanged",
+      IS_MUTED_CHANGED = "isMutedChanged",
+      CAN_PAUSE_CHANGED = "canPauseChanged",
+      CAN_SEEK_CHANGED = "canSeekChanged",
+      DISPLAY_NAME_CHANGED = "displayNameChanged",
+      STATUS_TEXT_CHANGED = "statusTextChanged",
+      TITLE_CHANGED = "titleChanged",
+      DISPLAY_STATUS_CHANGED = "displayStatusChanged",
+      MEDIA_INFO_CHANGED = "mediaInfoChanged",
+      IMAGE_URL_CHANGED = "imageUrlChanged",
+      PLAYER_STATE_CHANGED = "playerStateChanged",
+      LIVE_SEEKABLE_RANGE_CHANGED = "liveSeekableRange"
+    }
+  }
+}
+
 declare type AbstractMetaData = chrome.cast.media.GenericMediaMetadata | chrome.cast.media.MovieMediaMetadata | chrome.cast.media.MusicTrackMediaMetadata | chrome.cast.media.PhotoMediaMetadata
 declare class Media {
   static setDefaultImageProperties(w: number, h: number): void;
@@ -13,6 +103,7 @@ export interface Options {
   language?: string;
   resumeSavedSession?: boolean;
 }
+
 export declare class CastOptions {
   constructor();
   setOptions(options: Options): void;

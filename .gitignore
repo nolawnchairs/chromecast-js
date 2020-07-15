@@ -1,4 +1,4 @@
-/node_modules
-/dts
-/test
-/docs
+node_modules
+dts
+test
+docs

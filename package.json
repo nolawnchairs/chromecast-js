@@ -10,7 +10,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mweiczorek/chromecast-js"
+    "url": "https://github.com/nolawnchairs/chromecast-js"
+  },
+  "bugs": {
+    "url": "https://github.com/nolawnchairs/chromecast-js/issues"
   },
   "typescript": {
     "definition": "./index.d.ts"
@@ -30,6 +33,6 @@
   "scripts": {
     "start": "nodemon",
     "dts": "dts-bundle-generator index.ts -o types.d.ts",
-    "publish": "npm publish --access public"
+    "npm-publish": "npm publish --access public"
   }
 }
